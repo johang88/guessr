@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Guessr Scoreboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0f0f13;
+  --surface: #1a1a24;
+  --surface2: #23233a;
+  --border: #2d2d4a;
+  --text: #e8e6f0;
+  --text-dim: #8a87a8;
+  --accent: #7c6fff;
+  --accent2: #ff6b9d;
+  --accent3: #4ecdc4;
+  --gold: #ffd93d;
+  --silver: #c0c0d0;
+  --bronze: #cd7f32;
+  --success: #4ecdc4;
+  --error: #ff6b6b;
+  --radius: 12px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Background texture */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: 
+    radial-gradient(ellipse at 20% 50%, rgba(124,111,255,0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(255,107,157,0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 80%, rgba(78,205,196,0.05) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.app { position: relative; z-index: 1; max-width: 900px; margin: 0 auto; padding: 24px 16px; }
+
+/* Header */
+header {
+  text-align: center;
+  padding: 40px 0 32px;
+}
+
+header h1 {
+  font-family: 'Space Mono', monospace;
+  font-size: 2.2rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--accent), var(--accent2), var(--accent3));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  letter-spacing: -1px;
+  margin-bottom: 6px;
+}
+
+header p {
+  color: var(--text-dim);
+  font-size: 0.95rem;
+}
+
+/* Tabs */
+.tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 4px;
+  margin-bottom: 28px;
+  border: 1px solid var(--border);
+}
+
+.tab {
+  flex: 1;
+  padding: 12px 16px;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 600;
+  font-size: 0.9rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tab:hover { color: var(--text); background: var(--surface2); }
+.tab.active { background: var(--accent); color: #fff; }
+
+/* Card */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  margin-bottom: 20px;
+}
+
+.card h2 {
+  font-family: 'Space Mono', monospace;
+  font-size: 1.1rem;
+  margin-bottom: 16px;
+  color: var(--accent);
+}
+
+/* Form elements */
+label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+input[type="text"], input[type="date"], textarea {
+  width: 100%;
+  padding: 12px 16px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.95rem;
+  transition: border-color 0.2s;
+  outline: none;
+}
+
+input:focus, textarea:focus {
+  border-color: var(--accent);
+}
+
+textarea {
+  min-height: 200px;
+  resize: vertical;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 28px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 700;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn:hover { transform: translateY(-1px); filter: brightness(1.15); }
+.btn:active { transform: translateY(0); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+.btn-secondary {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+}
+
+.field { margin-bottom: 16px; }
+
+.field-row { display: flex; gap: 12px; }
+.field-row .field { flex: 1; }
+
+/* Messages */
+.msg {
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  margin-top: 16px;
+  animation: slideIn 0.3s ease;
+}
+
+.msg-success { background: rgba(78,205,196,0.12); border: 1px solid rgba(78,205,196,0.3); color: var(--success); }
+.msg-error { background: rgba(255,107,107,0.12); border: 1px solid rgba(255,107,107,0.3); color: var(--error); }
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Results table */
+.results-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.result-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  align-items: center;
+  padding: 12px 16px;
+  background: var(--bg);
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.result-row.header {
+  background: transparent;
+  color: var(--text-dim);
+  font-weight: 600;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 8px 16px;
+}
+
+.game-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.game-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.game-badge.travle { background: rgba(255,152,0,0.15); color: #ff9800; }
+.game-badge.connections { background: rgba(156,39,176,0.15); color: #ce93d8; }
+.game-badge.wordle { background: rgba(76,175,80,0.15); color: #81c784; }
+.game-badge.guessthemovie { background: rgba(244,67,54,0.15); color: #ef9a9a; }
+.game-badge.guessthegame { background: rgba(33,150,243,0.15); color: #90caf9; }
+.game-badge.foodguessr { background: rgba(255,193,7,0.15); color: #ffd54f; }
+.game-badge.timeguessr { background: rgba(0,188,212,0.15); color: #80deea; }
+
+.score-val { font-family: 'Space Mono', monospace; font-weight: 700; }
+.score-norm { color: var(--text-dim); font-size: 0.85rem; }
+
+/* Leaderboard */
+.leaderboard-entry {
+  display: grid;
+  grid-template-columns: 40px 2fr 1fr 1fr;
+  align-items: center;
+  padding: 16px;
+  background: var(--bg);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  transition: all 0.2s;
+}
+
+.leaderboard-entry:hover {
+  background: var(--surface2);
+}
+
+.leaderboard-entry.top-1 {
+  border: 1px solid rgba(255,217,61,0.3);
+  background: rgba(255,217,61,0.05);
+}
+.leaderboard-entry.top-2 {
+  border: 1px solid rgba(192,192,208,0.2);
+  background: rgba(192,192,208,0.03);
+}
+.leaderboard-entry.top-3 {
+  border: 1px solid rgba(205,127,50,0.2);
+  background: rgba(205,127,50,0.03);
+}
+
+.rank {
+  font-family: 'Space Mono', monospace;
+  font-weight: 700;
+  font-size: 1.2rem;
+  text-align: center;
+}
+
+.rank-1 { color: var(--gold); }
+.rank-2 { color: var(--silver); }
+.rank-3 { color: var(--bronze); }
+
+.lb-name {
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.lb-games {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+.lb-score {
+  font-family: 'Space Mono', monospace;
+  font-weight: 700;
+  font-size: 1.3rem;
+  text-align: right;
+  color: var(--accent3);
+}
+
+.week-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.week-nav span {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.9rem;
+  min-width: 200px;
+  text-align: center;
+}
+
+.week-btn {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+.week-btn:hover { background: var(--accent); border-color: var(--accent); }
+
+/* Game details expand */
+.game-details {
+  margin-top: 8px;
+  padding: 12px;
+  background: var(--surface);
+  border-radius: 8px;
+  font-size: 0.85rem;
+}
+
+.game-details-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.gd-item {
+  padding: 8px;
+  background: var(--bg);
+  border-radius: 6px;
+  text-align: center;
+}
+
+.gd-game { font-size: 0.75rem; color: var(--text-dim); margin-bottom: 2px; }
+.gd-score { font-family: 'Space Mono', monospace; font-weight: 700; }
+.gd-norm { font-size: 0.75rem; color: var(--text-dim); }
+
+/* Parsed preview */
+.parsed-preview {
+  margin-top: 16px;
+  padding: 16px;
+  background: var(--bg);
+  border-radius: 8px;
+  border: 1px dashed var(--border);
+}
+
+.parsed-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.parsed-item:last-child { border: none; }
+
+/* History */
+.history-group {
+  margin-bottom: 16px;
+}
+
+.history-date {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+  padding-left: 4px;
+}
+
+.history-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  background: var(--bg);
+  border-radius: 8px;
+  margin-bottom: 4px;
+  font-size: 0.9rem;
+}
+
+.delete-btn {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 0.8rem;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+.delete-btn:hover { color: var(--error); background: rgba(255,107,107,0.1); }
+
+/* Section hidden */
+.section { display: none; }
+.section.active { display: block; animation: fadeIn 0.3s ease; }
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  header h1 { font-size: 1.6rem; }
+  .field-row { flex-direction: column; gap: 0; }
+  .result-row { grid-template-columns: 1.5fr 1fr 1fr; font-size: 0.8rem; }
+  .leaderboard-entry { grid-template-columns: 32px 2fr 1fr; }
+  .lb-games { display: none; }
+}
+
+/* Empty state */
+.empty-state {
+  text-align: center;
+  padding: 48px 16px;
+  color: var(--text-dim);
+}
+.empty-state .icon { font-size: 3rem; margin-bottom: 12px; }
+.empty-state p { font-size: 0.95rem; }
+
+/* Scoring info */
+.scoring-info {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+.scoring-info dt {
+  font-weight: 600;
+  color: var(--text);
+  display: inline;
+}
+.scoring-info dd {
+  display: inline;
+  margin-left: 4px;
+  margin-right: 16px;
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>GUESSR SCOREBOARD</h1>
+    <p>Track your daily puzzle scores &amp; compete weekly</p>
+  </header>
+
+  <div class="tabs">
+    <button class="tab active" onclick="showTab('submit')">Submit</button>
+    <button class="tab" onclick="showTab('today')">Today</button>
+    <button class="tab" onclick="showTab('leaderboard')">Leaderboard</button>
+    <button class="tab" onclick="showTab('history')">History</button>
+  </div>
+
+  <!-- SUBMIT TAB -->
+  <div id="tab-submit" class="section active">
+    <div class="card">
+      <h2>// Submit Scores</h2>
+      <div class="field">
+        <label>Player Name</label>
+        <input type="text" id="username" placeholder="Enter your name..." />
+      </div>
+      <div class="field">
+        <label>Paste Your Results</label>
+        <textarea id="score-text" placeholder="Paste your game results here...&#10;&#10;Supports: Travle, Connections, Wordle, GuessTheMovie, GuessTheGame, FoodGuessr, TimeGuessr&#10;&#10;You can paste multiple games at once!"></textarea>
+      </div>
+      <button class="btn" onclick="submitScores()">Submit Scores</button>
+      <div id="submit-result"></div>
+    </div>
+
+    <div class="card">
+      <h2>// Scoring Rules</h2>
+      <div class="scoring-info">
+        <p><strong>Lower is better:</strong> Travle (antal fel, -1 för perfect), Connections (0–4 fel), Wordle (1–7 gissningar), GuessTheMovie (1–7), GuessTheGame (1–7)</p>
+        <p style="margin-top:8px"><strong>Higher is better:</strong> FoodGuessr (0–15,000), TimeGuessr (0–50,000)</p>
+        <p style="margin-top:8px">All scores are normalized to 0–100 for the leaderboard (100 = best possible).</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- TODAY TAB -->
+  <div id="tab-today" class="section">
+    <div class="card">
+      <h2>// Today's Scores</h2>
+      <div class="field">
+        <label>Date</label>
+        <input type="date" id="view-date" onchange="loadToday()" />
+      </div>
+      <div id="today-scores" style="margin-top:16px"></div>
+    </div>
+  </div>
+
+  <!-- LEADERBOARD TAB -->
+  <div id="tab-leaderboard" class="section">
+    <div class="card">
+      <h2>// Weekly Leaderboard</h2>
+      <div class="week-nav">
+        <button class="week-btn" onclick="changeWeek(-1)">◀</button>
+        <span id="week-label">This Week</span>
+        <button class="week-btn" onclick="changeWeek(1)">▶</button>
+      </div>
+      <div id="leaderboard-content"></div>
+    </div>
+  </div>
+
+  <!-- HISTORY TAB -->
+  <div id="tab-history" class="section">
+    <div class="card">
+      <h2>// Your History</h2>
+      <div class="field">
+        <label>Player Name</label>
+        <input type="text" id="history-user" placeholder="Enter name to view history..." />
+        <button class="btn" style="margin-top:8px" onclick="loadHistory()">Load History</button>
+      </div>
+      <div id="history-content" style="margin-top:16px"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Cookie helpers
+function setCookie(name, value, days=365) {
+  const d = new Date();
+  d.setTime(d.getTime() + days*24*60*60*1000);
+  document.cookie = `${name}=${encodeURIComponent(value)};expires=${d.toUTCString()};path=/;SameSite=Lax`;
+}
+
+function getCookie(name) {
+  const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+  return v ? decodeURIComponent(v.pop()) : '';
+}
+
+// Init
+const usernameInput = document.getElementById('username');
+const savedName = getCookie('guessr_username');
+if (savedName) {
+  usernameInput.value = savedName;
+  document.getElementById('history-user').value = savedName;
+}
+
+usernameInput.addEventListener('change', () => {
+  setCookie('guessr_username', usernameInput.value);
+  document.getElementById('history-user').value = usernameInput.value;
+});
+
+document.getElementById('view-date').value = new Date().toISOString().split('T')[0];
+
+// Tabs
+function showTab(name) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  event.target.classList.add('active');
+
+  if (name === 'today') loadToday();
+  if (name === 'leaderboard') loadLeaderboard();
+}
+
+// Submit
+async function submitScores() {
+  const username = usernameInput.value.trim();
+  const text = document.getElementById('score-text').value.trim();
+  const resultDiv = document.getElementById('submit-result');
+
+  if (!username) {
+    resultDiv.innerHTML = '<div class="msg msg-error">Please enter your name!</div>';
+    return;
+  }
+  if (!text) {
+    resultDiv.innerHTML = '<div class="msg msg-error">Please paste your game results!</div>';
+    return;
+  }
+
+  setCookie('guessr_username', username);
+
+  try {
+    const resp = await fetch('/api/parse', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({username, text})
+    });
+    const data = await resp.json();
+
+    if (!resp.ok) {
+      resultDiv.innerHTML = `<div class="msg msg-error">${data.error}</div>`;
+      return;
+    }
+
+    let html = '';
+    if (data.saved.length) {
+      html += '<div class="msg msg-success"><strong>Saved!</strong><br>';
+      data.saved.forEach(s => {
+        const arrow = ['FoodGuessr','TimeGuessr'].includes(s.game) ? '↑' : '↓';
+        html += `${getGameBadge(s.game)} ${s.score} ${arrow} (${s.date})<br>`;
+      });
+      html += '</div>';
+    }
+    if (data.errors.length) {
+      html += '<div class="msg msg-error">';
+      data.errors.forEach(e => html += `${e}<br>`);
+      html += '</div>';
+    }
+    resultDiv.innerHTML = html;
+    document.getElementById('score-text').value = '';
+  } catch(e) {
+    resultDiv.innerHTML = `<div class="msg msg-error">Network error: ${e.message}</div>`;
+  }
+}
+
+function getGameBadge(game) {
+  const cls = game.toLowerCase().replace(/\s/g, '');
+  return `<span class="game-badge ${cls}">${game}</span>`;
+}
+
+function getGameClass(game) {
+  return game.toLowerCase().replace(/\s/g, '');
+}
+
+// Today
+async function loadToday() {
+  const date = document.getElementById('view-date').value;
+  const div = document.getElementById('today-scores');
+  
+  try {
+    const resp = await fetch(`/api/scores?date=${date}`);
+    const data = await resp.json();
+
+    if (!data.length) {
+      div.innerHTML = '<div class="empty-state"><div class="icon">📭</div><p>No scores for this date yet</p></div>';
+      return;
+    }
+
+    // Group by game
+    const games = {};
+    data.forEach(row => {
+      if (!games[row.game]) games[row.game] = [];
+      games[row.game].push(row);
+    });
+
+    let html = '';
+    for (const [game, entries] of Object.entries(games)) {
+      const higher = ['FoodGuessr','TimeGuessr'].includes(game);
+      entries.sort((a, b) => higher ? b.score_value - a.score_value : a.score_value - b.score_value);
+      
+      html += `<div style="margin-bottom:16px">`;
+      html += `<div style="margin-bottom:8px">${getGameBadge(game)}</div>`;
+      entries.forEach((e, i) => {
+        const medal = i === 0 ? ' 🥇' : i === 1 ? ' 🥈' : i === 2 ? ' 🥉' : '';
+        html += `<div class="history-item">
+          <span>${e.username}${medal}</span>
+          <span class="score-val">${e.score_value}</span>
+        </div>`;
+      });
+      html += `</div>`;
+    }
+    div.innerHTML = html;
+  } catch(e) {
+    div.innerHTML = `<div class="msg msg-error">${e.message}</div>`;
+  }
+}
+
+// Leaderboard
+let currentWeekOffset = 0;
+
+function changeWeek(delta) {
+  currentWeekOffset += delta;
+  if (currentWeekOffset > 0) currentWeekOffset = 0;
+  loadLeaderboard();
+}
+
+async function loadLeaderboard() {
+  const div = document.getElementById('leaderboard-content');
+  const label = document.getElementById('week-label');
+
+  try {
+    const resp = await fetch(`/api/leaderboard?week_offset=${currentWeekOffset}`);
+    const data = await resp.json();
+
+    label.textContent = `${data.week_start} → ${data.week_end}`;
+
+    if (!data.leaderboard.length) {
+      div.innerHTML = '<div class="empty-state"><div class="icon">🏆</div><p>No scores this week yet</p></div>';
+      return;
+    }
+
+    let html = '';
+    data.leaderboard.forEach((entry, i) => {
+      const rank = i + 1;
+      const rankClass = rank <= 3 ? `rank-${rank}` : '';
+      const topClass = rank <= 3 ? `top-${rank}` : '';
+      
+      html += `<div class="leaderboard-entry ${topClass}" onclick="toggleDetails(this)">
+        <div class="rank ${rankClass}">${rank <= 3 ? ['🥇','🥈','🥉'][rank-1] : rank}</div>
+        <div>
+          <div class="lb-name">${entry.username}</div>
+          <div class="lb-games">${entry.games_played} games played</div>
+        </div>
+        <div class="lb-games">${entry.games_played} games</div>
+        <div class="lb-score">${entry.average_score}</div>
+      </div>`;
+      
+      // Detail dropdown
+      html += `<div class="game-details" style="display:none;margin-top:-4px;margin-bottom:8px">`;
+      html += `<div class="game-details-grid">`;
+      for (const [game, scores] of Object.entries(entry.details)) {
+        scores.forEach(s => {
+          html += `<div class="gd-item">
+            <div class="gd-game">${game} (${s.date.slice(5)})</div>
+            <div class="gd-score">${s.score}</div>
+            <div class="gd-norm">${s.normalized}/100</div>
+          </div>`;
+        });
+      }
+      html += `</div></div>`;
+    });
+
+    div.innerHTML = html;
+  } catch(e) {
+    div.innerHTML = `<div class="msg msg-error">${e.message}</div>`;
+  }
+}
+
+function toggleDetails(el) {
+  const details = el.nextElementSibling;
+  if (details && details.classList.contains('game-details')) {
+    details.style.display = details.style.display === 'none' ? 'block' : 'none';
+  }
+}
+
+// History
+async function loadHistory() {
+  const username = document.getElementById('history-user').value.trim();
+  const div = document.getElementById('history-content');
+  
+  if (!username) {
+    div.innerHTML = '<div class="msg msg-error">Please enter a name</div>';
+    return;
+  }
+
+  try {
+    const resp = await fetch(`/api/history?username=${encodeURIComponent(username)}`);
+    const data = await resp.json();
+
+    if (!data.length) {
+      div.innerHTML = '<div class="empty-state"><div class="icon">📝</div><p>No history found</p></div>';
+      return;
+    }
+
+    // Group by date
+    const dates = {};
+    data.forEach(row => {
+      if (!dates[row.play_date]) dates[row.play_date] = [];
+      dates[row.play_date].push(row);
+    });
+
+    let html = '';
+    for (const [date, entries] of Object.entries(dates)) {
+      html += `<div class="history-group">`;
+      html += `<div class="history-date">${date}</div>`;
+      entries.forEach(e => {
+        html += `<div class="history-item">
+          <span>${getGameBadge(e.game)} <span class="score-val">${e.score_value}</span></span>
+          <button class="delete-btn" onclick="deleteScore('${username}','${e.game}','${date}')">✕ delete</button>
+        </div>`;
+      });
+      html += `</div>`;
+    }
+    div.innerHTML = html;
+  } catch(e) {
+    div.innerHTML = `<div class="msg msg-error">${e.message}</div>`;
+  }
+}
+
+async function deleteScore(username, game, date) {
+  if (!confirm(`Delete ${game} score for ${date}?`)) return;
+  
+  try {
+    await fetch('/api/delete', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({username, game, date})
+    });
+    loadHistory();
+  } catch(e) {
+    alert('Error: ' + e.message);
+  }
+}
+
+// Allow Ctrl+Enter to submit
+document.getElementById('score-text').addEventListener('keydown', (e) => {
+  if (e.ctrlKey && e.key === 'Enter') submitScores();
+});
+</script>
+</body>
+</html>
