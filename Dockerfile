@@ -12,8 +12,13 @@ RUN groupadd -r appuser && useradd -r -g appuser -d /app -s /sbin/nologin appuse
 
 WORKDIR /app
 
-# Install production WSGI server
-RUN pip install --no-cache-dir flask gunicorn
+# Install production WSGI server and OpenTelemetry
+RUN pip install --no-cache-dir flask gunicorn \
+    opentelemetry-distro \
+    opentelemetry-exporter-otlp
+
+# Auto-detect installed libraries and install the right OTel instrumentations
+RUN opentelemetry-bootstrap -a install
 
 # Copy application files
 COPY app.py index.html ./
@@ -23,6 +28,8 @@ RUN mkdir -p /data && chown appuser:appuser /data
 
 # Point the app at the persistent data directory
 ENV DB_PATH=/data/guessr_scores.db
+ENV OTEL_SERVICE_NAME=guessr
+ENV OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED=true
 
 EXPOSE 5000
 
@@ -34,4 +41,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
   CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:5000/')" || exit 1
 
 # Run with gunicorn for production
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--timeout", "120", "app:app"]
+CMD ["opentelemetry-instrument", "gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--timeout", "120", "app:app"]
