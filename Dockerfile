@@ -13,7 +13,7 @@ RUN groupadd -r appuser && useradd -r -g appuser -d /app -s /sbin/nologin appuse
 WORKDIR /app
 
 # Install production WSGI server and OpenTelemetry
-RUN pip install --no-cache-dir flask \
+RUN pip install --no-cache-dir flask gunicorn \
     opentelemetry-distro \
     opentelemetry-exporter-otlp
 
@@ -21,7 +21,7 @@ RUN pip install --no-cache-dir flask \
 RUN opentelemetry-bootstrap -a install
 
 # Copy application files
-COPY app.py index.html ./
+COPY app.py index.html gunicorn.conf.py ./
 
 # Create directory for SQLite database (mount a volume here in k8s)
 RUN mkdir -p /data && chown appuser:appuser /data
@@ -41,4 +41,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
   CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:5000/')" || exit 1
 
 # Run with gunicorn for production
-CMD ["opentelemetry-instrument", "gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--timeout", "120", "--worker-tmp-dir", "/dev/shm", "--control-socket", "/dev/shm/gunicorn.sock", "app:app"]
+CMD ["opentelemetry-instrument", "gunicorn", "--config", "/app/gunicorn.conf.py", "app:app"]
