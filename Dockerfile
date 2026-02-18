@@ -20,9 +20,6 @@ RUN pip install --no-cache-dir flask \
 # Auto-detect installed libraries and install the right OTel instrumentations
 RUN opentelemetry-bootstrap -a install
 
-# Pin gunicorn after bootstrap (bootstrap may upgrade it)
-RUN pip install --no-cache-dir "gunicorn==21.2.0"
-
 # Copy application files
 COPY app.py index.html ./
 
@@ -44,4 +41,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
   CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:5000/')" || exit 1
 
 # Run with gunicorn for production
-CMD ["opentelemetry-instrument", "gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--timeout", "120", "--worker-tmp-dir", "/dev/shm", "app:app"]
+CMD ["opentelemetry-instrument", "gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--timeout", "120", "--worker-tmp-dir", "/dev/shm", "--control-socket", "/dev/shm/gunicorn.sock", "app:app"]
