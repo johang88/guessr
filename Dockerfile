@@ -37,6 +37,7 @@ EXPOSE 5000
 # Switch to non-root user
 USER appuser
 
+
 # Health check for Kubernetes readiness/liveness probes
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
   CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:5000/')" || exit 1
