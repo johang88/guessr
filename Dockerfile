@@ -33,6 +33,7 @@ RUN mkdir -p /data && chown appuser:appuser /data
 ENV DB_PATH=/data/guessr_scores.db
 ENV OTEL_SERVICE_NAME=guessr
 ENV OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+ENV OTEL_LOGS_EXPORTER=otlp
 ENV OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED=true
 
 EXPOSE 5000
