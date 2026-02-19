@@ -20,8 +20,7 @@ jobs:
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
           WATCHTOWER_URL: ${{ secrets.WATCHTOWER_URL }}
         run: |
-          cloudflared access curl \
+          cloudflared access curl "$WATCHTOWER_URL/v1/update" \
             --service-token-id "$CF_ACCESS_CLIENT_ID" \
             --service-token-secret "$CF_ACCESS_CLIENT_SECRET" \
-            "$WATCHTOWER_URL/v1/update" \
             -H "Authorization: Bearer $WATCHTOWER_TOKEN"
