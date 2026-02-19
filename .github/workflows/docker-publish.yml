@@ -59,20 +59,10 @@ jobs:
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
-      - name: Install cloudflared
-        run: |
-          curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 \
-            -o /usr/local/bin/cloudflared
-          chmod +x /usr/local/bin/cloudflared
-
       - name: Trigger Watchtower
-        env:
-          WATCHTOWER_TOKEN: ${{ secrets.WATCHTOWER_TOKEN }}
-          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
-          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
-          WATCHTOWER_URL: ${{ secrets.WATCHTOWER_URL }}
         run: |
-          cloudflared access curl "$WATCHTOWER_URL/v1/update" \
-            --service-token-id "$CF_ACCESS_CLIENT_ID" \
-            --service-token-secret "$CF_ACCESS_CLIENT_SECRET" \
-            -H "Authorization: Bearer $WATCHTOWER_TOKEN"
+          curl -sf \
+            -H "Authorization: Bearer ${{ secrets.WATCHTOWER_TOKEN }}" \
+            -H "CF-Access-Client-Id: ${{ secrets.CF_ACCESS_CLIENT_ID }}" \
+            -H "CF-Access-Client-Secret: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}" \
+            ${{ secrets.WATCHTOWER_URL }}/v1/update
