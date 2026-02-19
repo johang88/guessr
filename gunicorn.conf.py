@@ -14,7 +14,10 @@ loglevel = "info"
 def post_fork(server, worker):
     """Reinitialize OTel log provider after fork — exporter threads don't survive fork."""
     import os
-    if not os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT"):
+    if not any(os.environ.get(k) for k in [
+        "OTEL_EXPORTER_OTLP_ENDPOINT",
+        "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT",
+    ]):
         return
     try:
         try:
@@ -31,8 +34,12 @@ def post_fork(server, worker):
         from opentelemetry.instrumentation.logging import LoggingInstrumentor
 
         from opentelemetry.sdk.resources import Resource
+        try:
+            from opentelemetry.sdk.logs.export import SimpleLogRecordProcessor
+        except ImportError:
+            from opentelemetry.sdk._logs.export import SimpleLogRecordProcessor
         provider = LoggerProvider(resource=Resource.create())
-        provider.add_log_record_processor(BatchLogRecordProcessor(OTLPLogExporter()))
+        provider.add_log_record_processor(SimpleLogRecordProcessor(OTLPLogExporter()))
         _logs.set_logger_provider(provider)
         LoggingInstrumentor().uninstrument()
         LoggingInstrumentor().instrument()

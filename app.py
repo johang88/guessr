@@ -2,8 +2,11 @@ import sqlite3
 import re
 import os
 import json
+import logging
 from datetime import datetime, timedelta
 from flask import Flask, request, jsonify, send_file
+
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 DB_PATH = os.environ.get("DB_PATH", "guessr_scores.db")
@@ -223,8 +226,10 @@ def health():
         conn = get_db()
         conn.execute("SELECT 1").fetchone()
         conn.close()
+        logger.info("health check ok")
         return jsonify({"status": "ok", "db": "ok"})
     except Exception as e:
+        logger.error("health check failed: %s", e)
         return jsonify({"status": "error", "db": str(e)}), 500
 
 
