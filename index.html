@@ -598,6 +598,9 @@ textarea {
       <div id="history-content" style="margin-top:16px"></div>
     </div>
   </div>
+  <footer style="text-align:center; padding: 24px 0 8px; color: var(--text-dim); font-family: 'Space Mono', monospace; font-size: 0.75rem;">
+    <span id="app-version"></span>
+  </footer>
 </div>
 
 <script>
@@ -877,6 +880,11 @@ async function deleteScore(username, game, date) {
     alert('Error: ' + e.message);
   }
 }
+
+// Version
+fetch('/api/version').then(r => r.json()).then(d => {
+  document.getElementById('app-version').textContent = d.version.substring(0, 7);
+});
 
 // Allow Ctrl+Enter to submit
 document.getElementById('score-text').addEventListener('keydown', (e) => {

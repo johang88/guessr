@@ -217,6 +217,11 @@ def index():
     return send_file("index.html")
 
 
+@app.route("/api/version")
+def api_version():
+    return jsonify({"version": os.environ.get("APP_VERSION", "dev")})
+
+
 @app.route("/api/parse", methods=["POST"])
 def api_parse():
     data = request.json

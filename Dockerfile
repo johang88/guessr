@@ -20,6 +20,9 @@ RUN pip install --no-cache-dir flask gunicorn \
 # Auto-detect installed libraries and install the right OTel instrumentations
 RUN opentelemetry-bootstrap -a install
 
+ARG GIT_SHA=dev
+ENV APP_VERSION=$GIT_SHA
+
 # Copy application files
 COPY app.py index.html gunicorn.conf.py ./
 
