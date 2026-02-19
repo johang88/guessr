@@ -21,28 +21,20 @@ def post_fork(server, worker):
         return
     try:
         try:
-            from opentelemetry.sdk.logs import LoggerProvider
-            from opentelemetry.sdk.logs.export import BatchLogRecordProcessor
-        except ImportError:
-            from opentelemetry.sdk._logs import LoggerProvider
-            from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
-        try:
             from opentelemetry.exporter.otlp.proto.http.log_exporter import OTLPLogExporter
         except ImportError:
             from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
-        from opentelemetry import _logs
-        from opentelemetry.instrumentation.logging import LoggingInstrumentor
-
-        from opentelemetry.sdk.resources import Resource
         try:
             from opentelemetry.sdk.logs.export import SimpleLogRecordProcessor
         except ImportError:
             from opentelemetry.sdk._logs.export import SimpleLogRecordProcessor
-        provider = LoggerProvider(resource=Resource.create())
+        from opentelemetry import _logs
+
+        # Get the existing provider (set by opentelemetry-instrument before fork)
+        # and add a fresh processor — the original BatchLogRecordProcessor's
+        # background thread dies on fork, so we add a sync one instead.
+        provider = _logs.get_logger_provider()
         provider.add_log_record_processor(SimpleLogRecordProcessor(OTLPLogExporter()))
-        _logs.set_logger_provider(provider)
-        LoggingInstrumentor().uninstrument()
-        LoggingInstrumentor().instrument()
-        server.log.info("OTel log provider reinitialized in worker %s", worker.pid)
+        server.log.info("OTel log processor added in worker %s", worker.pid)
     except Exception as e:
-        server.log.warning("Failed to reinitialize OTel log provider: %s", e)
+        server.log.warning("Failed to add OTel log processor: %s", e)
