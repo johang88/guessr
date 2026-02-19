@@ -42,12 +42,13 @@ def init_db():
 
 def parse_travle(text):
     """Travle: score is the +N number (antal fel). -1 for perfect."""
+    # Check for perfect first: "+0 (Perfect)" or just "(Perfect)"
+    m_perfect = re.search(r'#travle\s+#(\d+)\s+\+?\d*\s*\(Perfect\)', text, re.IGNORECASE)
+    if m_perfect:
+        return {"game": "Travle", "number": m_perfect.group(1), "score": -1}
+    
     m = re.search(r'#travle\s+#(\d+)\s+([+-]?\d+)', text, re.IGNORECASE)
     if not m:
-        # Check for perfect
-        m2 = re.search(r'#travle\s+#(\d+)\s+\(Perfect\)', text, re.IGNORECASE)
-        if m2:
-            return {"game": "Travle", "number": m2.group(1), "score": -1}
         return None
     return {"game": "Travle", "number": m.group(1), "score": int(m.group(2))}
 
@@ -91,13 +92,14 @@ def parse_connections(text):
 
 
 def parse_wordle(text):
-    """Wordle: score is the number of guesses. X/6 = 7."""
-    m = re.search(r'Wordle\s+[\d,]+\s+([X\d])/6', text, re.IGNORECASE)
+    """Wordle: score is the number of guesses. X/6 = 7.
+    Number can use commas or spaces as thousand separators: 1,705 or 1 705"""
+    # Match "Wordle" followed by digits (with optional comma/space separators) then score/6
+    m = re.search(r'Wordle\s+([\d\s,]+?)\s+([X\d])/6', text, re.IGNORECASE)
     if not m:
         return None
-    num_m = re.search(r'Wordle\s+([\d,]+)', text, re.IGNORECASE)
-    number = num_m.group(1).replace(",", "") if num_m else ""
-    score_str = m.group(1)
+    number = re.sub(r'[\s,]', '', m.group(1))
+    score_str = m.group(2)
     score = 7 if score_str.upper() == 'X' else int(score_str)
     return {"game": "Wordle", "number": number, "score": score}
 
@@ -135,21 +137,22 @@ def parse_guess_the_game(text):
 
 
 def parse_foodguessr(text):
-    """FoodGuessr: extract total score (higher is better)."""
-    m = re.search(r'I got ([\d,]+) on the FoodGuessr', text, re.IGNORECASE)
+    """FoodGuessr: extract total score (higher is better).
+    Score can use commas or spaces as thousand separators: 11,000 or 11 000 or 4 430"""
+    m = re.search(r'I got ([\d\s,]+?) on the FoodGuessr', text, re.IGNORECASE)
     if not m:
         return None
-    score = int(m.group(1).replace(",", ""))
+    score = int(re.sub(r'[\s,]', '', m.group(1)))
     return {"game": "FoodGuessr", "number": "", "score": score}
 
 
 def parse_timeguessr(text):
-    """TimeGuessr: extract score like 44,237/50,000 (higher is better)."""
-    m = re.search(r'TimeGuessr\s+#(\d+)\s+([\d,]+)/([\d,]+)', text, re.IGNORECASE)
+    """TimeGuessr: extract score like 44,237/50,000 or 44 237/50 000 (higher is better)."""
+    m = re.search(r'TimeGuessr\s+#(\d+)\s+([\d\s,]+?)/([\d\s,]+)', text, re.IGNORECASE)
     if not m:
         return None
     number = m.group(1)
-    score = int(m.group(2).replace(",", ""))
+    score = int(re.sub(r'[\s,]', '', m.group(2)))
     return {"game": "TimeGuessr", "number": number, "score": score}
 
 
@@ -274,12 +277,12 @@ def api_scores():
 
 @app.route("/api/leaderboard")
 def api_leaderboard():
-    """Weekly leaderboard: normalized scores averaged per user."""
-    # Get the current week (Mon-Sun)
+    """Weekly leaderboard: wins per game.
+    For each game+date, the best score wins (lowest for lower-is-better, highest for higher-is-better).
+    Ties = all tied players get a win."""
     today = datetime.now()
     week_offset = int(request.args.get("week_offset", 0))
     
-    # Calculate start of week
     start_of_week = today - timedelta(days=today.weekday()) - timedelta(weeks=-week_offset)
     start_of_week = start_of_week.replace(hour=0, minute=0, second=0, microsecond=0)
     end_of_week = start_of_week + timedelta(days=6)
@@ -289,43 +292,61 @@ def api_leaderboard():
     
     conn = get_db()
     rows = conn.execute(
-        "SELECT username, game, score_value, play_date FROM scores WHERE play_date BETWEEN ? AND ? ORDER BY username, play_date",
+        "SELECT username, game, score_value, play_date FROM scores WHERE play_date BETWEEN ? AND ? ORDER BY game, play_date",
         (start_str, end_str)
     ).fetchall()
     conn.close()
     
-    # Build leaderboard
-    user_scores = {}
-    user_game_details = {}
-    
+    # Group by (game, date) -> list of {username, score}
+    from collections import defaultdict
+    game_date_entries = defaultdict(list)
     for row in rows:
-        u = row["username"]
-        g = row["game"]
-        s = row["score_value"]
-        d = row["play_date"]
-        
-        if u not in user_scores:
-            user_scores[u] = []
-            user_game_details[u] = {}
-        
-        norm = normalize_score(g, s)
-        user_scores[u].append(norm)
-        
-        if g not in user_game_details[u]:
-            user_game_details[u][g] = []
-        user_game_details[u][g].append({"score": s, "normalized": round(norm, 1), "date": d})
-    
-    leaderboard = []
-    for u, scores in user_scores.items():
-        avg = sum(scores) / len(scores) if scores else 0
-        leaderboard.append({
-            "username": u,
-            "average_score": round(avg, 1),
-            "games_played": len(scores),
-            "details": user_game_details[u]
+        game_date_entries[(row["game"], row["play_date"])].append({
+            "username": row["username"],
+            "score": row["score_value"]
         })
     
-    leaderboard.sort(key=lambda x: x["average_score"], reverse=True)
+    # For each game, count wins per user and collect all scores
+    # game -> { user -> { wins, scores: [{date, score, won}] } }
+    game_standings = defaultdict(lambda: defaultdict(lambda: {"wins": 0, "scores": []}))
+    
+    for (game, date), entries in game_date_entries.items():
+        lower = game in LOWER_IS_BETTER
+        
+        if lower:
+            best = min(e["score"] for e in entries)
+        else:
+            best = max(e["score"] for e in entries)
+        
+        for e in entries:
+            won = e["score"] == best and len(entries) > 1  # need >1 player for a win
+            if won:
+                game_standings[game][e["username"]]["wins"] += 1
+            game_standings[game][e["username"]]["scores"].append({
+                "date": date,
+                "score": e["score"],
+                "won": won
+            })
+    
+    # Build response: per game, leader + all players sorted by wins
+    leaderboard = []
+    for game in sorted(game_standings.keys()):
+        players = []
+        for username, data in game_standings[game].items():
+            players.append({
+                "username": username,
+                "wins": data["wins"],
+                "games_played": len(data["scores"]),
+                "scores": sorted(data["scores"], key=lambda s: s["date"])
+            })
+        players.sort(key=lambda p: (-p["wins"], -p["games_played"]))
+        
+        leaderboard.append({
+            "game": game,
+            "leader": players[0]["username"] if players else None,
+            "leader_wins": players[0]["wins"] if players else 0,
+            "players": players
+        })
     
     return jsonify({
         "week_start": start_str,

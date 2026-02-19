@@ -250,62 +250,119 @@ textarea {
 .score-val { font-family: 'Space Mono', monospace; font-weight: 700; }
 .score-norm { color: var(--text-dim); font-size: 0.85rem; }
 
-/* Leaderboard */
-.leaderboard-entry {
-  display: grid;
-  grid-template-columns: 40px 2fr 1fr 1fr;
-  align-items: center;
-  padding: 16px;
-  background: var(--bg);
-  border-radius: 8px;
-  margin-bottom: 8px;
+/* Leaderboard - per game cards */
+.lb-game-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  margin-bottom: 4px;
+  cursor: pointer;
   transition: all 0.2s;
 }
 
-.leaderboard-entry:hover {
-  background: var(--surface2);
+.lb-game-card:hover {
+  border-color: var(--accent);
+  background: rgba(124,111,255,0.06);
 }
 
-.leaderboard-entry.top-1 {
-  border: 1px solid rgba(255,217,61,0.3);
-  background: rgba(255,217,61,0.05);
-}
-.leaderboard-entry.top-2 {
-  border: 1px solid rgba(192,192,208,0.2);
-  background: rgba(192,192,208,0.03);
-}
-.leaderboard-entry.top-3 {
-  border: 1px solid rgba(205,127,50,0.2);
-  background: rgba(205,127,50,0.03);
+.lb-game-header {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  align-items: center;
+  gap: 16px;
 }
 
-.rank {
-  font-family: 'Space Mono', monospace;
-  font-weight: 700;
-  font-size: 1.2rem;
-  text-align: center;
-}
-
-.rank-1 { color: var(--gold); }
-.rank-2 { color: var(--silver); }
-.rank-3 { color: var(--bronze); }
-
-.lb-name {
+.lb-leader-name {
   font-weight: 600;
   font-size: 1rem;
 }
 
-.lb-games {
-  color: var(--text-dim);
-  font-size: 0.85rem;
-}
-
-.lb-score {
+.lb-win-count {
   font-family: 'Space Mono', monospace;
   font-weight: 700;
-  font-size: 1.3rem;
-  text-align: right;
+  font-size: 1.1rem;
   color: var(--accent3);
+}
+
+.lb-expand-icon {
+  color: var(--text-dim);
+  font-size: 1.2rem;
+  width: 24px;
+  text-align: center;
+}
+
+/* Expanded player list */
+.lb-players-panel {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 var(--radius) var(--radius);
+  margin-top: -4px;
+  margin-bottom: 12px;
+  padding: 8px;
+  animation: fadeIn 0.2s ease;
+}
+
+.lb-player-row {
+  display: grid;
+  grid-template-columns: 36px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  transition: background 0.15s;
+}
+
+.lb-player-row:hover {
+  background: var(--surface);
+}
+
+.lb-player-rank {
+  font-family: 'Space Mono', monospace;
+  font-weight: 700;
+  text-align: center;
+  font-size: 1rem;
+}
+
+.lb-player-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lb-player-name {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.lb-player-wins {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+}
+
+.lb-player-scores {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.lb-score-won, .lb-score-lost {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.8rem;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.lb-score-won {
+  background: rgba(78,205,196,0.15);
+  color: var(--accent3);
+  font-weight: 700;
+}
+
+.lb-score-lost {
+  background: var(--surface);
+  color: var(--text-dim);
 }
 
 .week-nav {
@@ -710,34 +767,41 @@ async function loadLeaderboard() {
     }
 
     let html = '';
-    data.leaderboard.forEach((entry, i) => {
-      const rank = i + 1;
-      const rankClass = rank <= 3 ? `rank-${rank}` : '';
-      const topClass = rank <= 3 ? `top-${rank}` : '';
+    data.leaderboard.forEach((gameEntry, gi) => {
+      const leader = gameEntry.players[0];
+      const winsText = leader.wins === 1 ? '1 Win' : `${leader.wins} Wins`;
       
-      html += `<div class="leaderboard-entry ${topClass}" onclick="toggleDetails(this)">
-        <div class="rank ${rankClass}">${rank <= 3 ? ['🥇','🥈','🥉'][rank-1] : rank}</div>
-        <div>
-          <div class="lb-name">${entry.username}</div>
-          <div class="lb-games">${entry.games_played} games played</div>
+      html += `<div class="lb-game-card" onclick="toggleGamePlayers('lb-players-${gi}', this)">
+        <div class="lb-game-header">
+          <div>${getGameBadge(gameEntry.game)}</div>
+          <div class="lb-leader-name">🏆 ${leader.username}</div>
+          <div class="lb-win-count">${winsText}</div>
+          <div class="lb-expand-icon">▾</div>
         </div>
-        <div class="lb-games">${entry.games_played} games</div>
-        <div class="lb-score">${entry.average_score}</div>
       </div>`;
       
-      // Detail dropdown
-      html += `<div class="game-details" style="display:none;margin-top:-4px;margin-bottom:8px">`;
-      html += `<div class="game-details-grid">`;
-      for (const [game, scores] of Object.entries(entry.details)) {
-        scores.forEach(s => {
-          html += `<div class="gd-item">
-            <div class="gd-game">${game} (${s.date.slice(5)})</div>
-            <div class="gd-score">${s.score}</div>
-            <div class="gd-norm">${s.normalized}/100</div>
-          </div>`;
+      // Expandable player list
+      html += `<div id="lb-players-${gi}" class="lb-players-panel" style="display:none">`;
+      gameEntry.players.forEach((player, pi) => {
+        const wText = player.wins === 1 ? '1 win' : `${player.wins} wins`;
+        const medal = pi === 0 ? '🥇' : pi === 1 ? '🥈' : pi === 2 ? '🥉' : '';
+        
+        html += `<div class="lb-player-row">
+          <div class="lb-player-rank">${medal || (pi + 1)}</div>
+          <div class="lb-player-info">
+            <span class="lb-player-name">${player.username}</span>
+            <span class="lb-player-wins">${wText} · ${player.games_played} played</span>
+          </div>
+          <div class="lb-player-scores">`;
+        
+        player.scores.forEach(s => {
+          const cls = s.won ? 'lb-score-won' : 'lb-score-lost';
+          html += `<span class="${cls}" title="${s.date}: ${s.score}">${s.score}</span>`;
         });
-      }
-      html += `</div></div>`;
+        
+        html += `</div></div>`;
+      });
+      html += `</div>`;
     });
 
     div.innerHTML = html;
@@ -746,11 +810,13 @@ async function loadLeaderboard() {
   }
 }
 
-function toggleDetails(el) {
-  const details = el.nextElementSibling;
-  if (details && details.classList.contains('game-details')) {
-    details.style.display = details.style.display === 'none' ? 'block' : 'none';
-  }
+function toggleGamePlayers(id, headerEl) {
+  const panel = document.getElementById(id);
+  if (!panel) return;
+  const isOpen = panel.style.display !== 'none';
+  panel.style.display = isOpen ? 'none' : 'block';
+  const icon = headerEl.querySelector('.lb-expand-icon');
+  if (icon) icon.textContent = isOpen ? '▾' : '▴';
 }
 
 // History
