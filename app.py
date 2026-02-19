@@ -2,11 +2,8 @@ import sqlite3
 import re
 import os
 import json
-import logging
 from datetime import datetime, timedelta
 from flask import Flask, request, jsonify, send_file
-
-logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 DB_PATH = os.environ.get("DB_PATH", "guessr_scores.db")
@@ -226,10 +223,8 @@ def health():
         conn = get_db()
         conn.execute("SELECT 1").fetchone()
         conn.close()
-        logger.info("health check ok")
         return jsonify({"status": "ok", "db": "ok"})
     except Exception as e:
-        logger.error("health check failed: %s", e)
         return jsonify({"status": "error", "db": str(e)}), 500
 
 
@@ -407,8 +402,12 @@ def api_delete():
     return jsonify({"ok": True})
 
 
-# Initialize DB on module load (works with both gunicorn and direct run)
+# Initialize DB on module load
 init_db()
+
+# ASGI wrapper so uvicorn can serve this WSGI app
+from a2wsgi import WSGIMiddleware
+asgi_app = WSGIMiddleware(app)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
