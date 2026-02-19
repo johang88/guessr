@@ -30,7 +30,8 @@ def post_fork(server, worker):
         from opentelemetry import _logs
         from opentelemetry.instrumentation.logging import LoggingInstrumentor
 
-        provider = LoggerProvider()
+        from opentelemetry.sdk.resources import Resource
+        provider = LoggerProvider(resource=Resource.create())
         provider.add_log_record_processor(BatchLogRecordProcessor(OTLPLogExporter()))
         _logs.set_logger_provider(provider)
         LoggingInstrumentor().uninstrument()
