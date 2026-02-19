@@ -61,6 +61,6 @@ jobs:
     steps:
       - name: Trigger Watchtower
         run: |
-          curl -sf \
+          curl -s -w "\nHTTP status: %{http_code}\n" \
             -H "Authorization: Bearer ${{ secrets.WATCHTOWER_TOKEN }}" \
             ${{ secrets.WATCHTOWER_URL }}/v1/update
