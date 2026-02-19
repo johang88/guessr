@@ -217,6 +217,17 @@ def index():
     return send_file("index.html")
 
 
+@app.route("/health")
+def health():
+    try:
+        conn = get_db()
+        conn.execute("SELECT 1").fetchone()
+        conn.close()
+        return jsonify({"status": "ok", "db": "ok"})
+    except Exception as e:
+        return jsonify({"status": "error", "db": str(e)}), 500
+
+
 @app.route("/api/version")
 def api_version():
     return jsonify({"version": os.environ.get("APP_VERSION", "dev")})

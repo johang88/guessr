@@ -34,6 +34,7 @@ ENV DB_PATH=/data/guessr_scores.db
 ENV OTEL_SERVICE_NAME=guessr
 ENV OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED=true
 ENV OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+ENV OTEL_LOGS_EXPORTER=otlp
 
 EXPOSE 5000
 
@@ -41,9 +42,9 @@ EXPOSE 5000
 USER appuser
 
 
-# Health check for Kubernetes readiness/liveness probes
+# Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:5000/')" || exit 1
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')" || exit 1
 
 # Run with gunicorn for production
 CMD ["opentelemetry-instrument", "gunicorn", "--config", "/app/gunicorn.conf.py", "app:app"]

@@ -3,3 +3,8 @@ workers = 2
 timeout = 120
 worker_tmp_dir = "/dev/shm"
 control_socket = "/dev/shm/gunicorn.sock"
+
+# Route gunicorn logs through Python logging so OTel captures them
+accesslog = "-"
+errorlog = "-"
+loglevel = "info"
