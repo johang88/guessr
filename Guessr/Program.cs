@@ -99,7 +99,9 @@ app.MapPost("/api/parse", async (HttpRequest req, ScoreRepository repo) =>
     if (string.IsNullOrEmpty(text))
         return Results.BadRequest(new { error = "No text provided" });
 
-    var playDate = GameParsers.ParseDateFromText(text) ?? DateTime.Now.ToString("yyyy-MM-dd");
+    var playDate = (data?.Date is { } d && DateTime.TryParse(d, out _) ? d : null)
+        ?? GameParsers.ParseDateFromText(text)
+        ?? DateTime.Now.ToString("yyyy-MM-dd");
     var parsed = GameParsers.ParseAll(text);
 
     if (parsed.Count == 0)

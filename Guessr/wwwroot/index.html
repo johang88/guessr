@@ -549,6 +549,10 @@ textarea {
         <input type="text" id="username" placeholder="Enter your name..." />
       </div>
       <div class="field">
+        <label>Date</label>
+        <input type="date" id="submit-date" />
+      </div>
+      <div class="field">
         <label>Paste Your Results</label>
         <textarea id="score-text" placeholder="Paste your game results here...&#10;&#10;Supports: Travle, Connections, Wordle, GuessTheMovie, GuessTheGame, FoodGuessr, TimeGuessr&#10;&#10;You can paste multiple games at once!"></textarea>
       </div>
@@ -634,7 +638,9 @@ usernameInput.addEventListener('change', () => {
   document.getElementById('history-user').value = usernameInput.value;
 });
 
-document.getElementById('view-date').value = new Date().toISOString().split('T')[0];
+const todayStr = new Date().toISOString().split('T')[0];
+document.getElementById('view-date').value = todayStr;
+document.getElementById('submit-date').value = todayStr;
 
 // Tabs
 function showTab(name) {
@@ -651,6 +657,7 @@ function showTab(name) {
 async function submitScores() {
   const username = usernameInput.value.trim();
   const text = document.getElementById('score-text').value.trim();
+  const date = document.getElementById('submit-date').value;
   const resultDiv = document.getElementById('submit-result');
 
   if (!username) {
@@ -668,7 +675,7 @@ async function submitScores() {
     const resp = await fetch('/api/parse', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({username, text})
+      body: JSON.stringify({username, text, date})
     });
     const data = await resp.json();
 
