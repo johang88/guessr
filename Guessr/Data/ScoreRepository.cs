@@ -2,20 +2,24 @@ using Dapper;
 using Guessr.Models;
 using Guessr.Parsers;
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Logging;
 
 namespace Guessr.Data;
 
 public class ScoreRepository
 {
     private readonly IDbConnectionFactory _factory;
+    private readonly ILogger<ScoreRepository> _logger;
 
-    public ScoreRepository(IDbConnectionFactory factory)
+    public ScoreRepository(IDbConnectionFactory factory, ILogger<ScoreRepository> logger)
     {
         _factory = factory;
+        _logger = logger;
     }
 
     public void InitializeDb()
     {
+        _logger.LogInformation("Initialising database schema");
         using var conn = _factory.CreateConnection();
         conn.Execute(@"
             CREATE TABLE IF NOT EXISTS scores (
@@ -32,6 +36,7 @@ public class ScoreRepository
         conn.Execute("CREATE INDEX IF NOT EXISTS idx_scores_date ON scores(play_date)");
         conn.Execute("CREATE INDEX IF NOT EXISTS idx_scores_user ON scores(username)");
         conn.Execute("CREATE INDEX IF NOT EXISTS idx_scores_game ON scores(game)");
+        _logger.LogInformation("Database schema ready");
     }
 
     public void CheckHealth()
@@ -85,10 +90,12 @@ public class ScoreRepository
                       VALUES (@username, @game, @gameNumber, @scoreValue, @rawText, @playDate)",
                     new { username, game = s.Game, gameNumber = s.Number, scoreValue = s.Score, rawText, playDate });
                 saved.Add(new SavedScore(s.Game, s.Number, s.Score, playDate));
+                _logger.LogDebug("Saved {Game} score {Score} for {Username} on {Date}", s.Game, s.Score, username, playDate);
             }
             catch (SqliteException ex) when (ex.SqliteErrorCode == 19) // SQLITE_CONSTRAINT
             {
                 errors.Add($"{s.Game}: already submitted for {playDate}");
+                _logger.LogDebug("Duplicate {Game} for {Username} on {Date} — skipped", s.Game, username, playDate);
             }
         }
 
@@ -97,6 +104,7 @@ public class ScoreRepository
 
     public void DeleteScore(string username, string game, string date)
     {
+        _logger.LogInformation("Deleting {Game} score for {Username} on {Date}", game, username, date);
         using var conn = _factory.CreateConnection();
         conn.Execute(
             "DELETE FROM scores WHERE username = @username AND game = @game AND play_date = @date",
@@ -118,6 +126,8 @@ public class ScoreRepository
 
         var startStr = weekStart.ToString("yyyy-MM-dd");
         var endStr = weekEnd.ToString("yyyy-MM-dd");
+
+        _logger.LogDebug("Leaderboard query for week {Start} to {End} (offset={Offset})", startStr, endStr, weekOffset);
 
         using var conn = _factory.CreateConnection();
         var rows = conn.Query<LeaderboardRow>(
@@ -145,9 +155,19 @@ public class ScoreRepository
             var (game, date) = kvp.Key;
             var entries = kvp.Value;
             bool lowerBetter = GameParsers.IsLowerBetter(game);
-            double best = lowerBetter
-                ? entries.Min(e => e.ScoreValue)
-                : entries.Max(e => e.ScoreValue);
+
+            var sorted = lowerBetter
+                ? entries.OrderBy(e => e.ScoreValue).ToList()
+                : entries.OrderByDescending(e => e.ScoreValue).ToList();
+
+            var rankMap = new Dictionary<string, int>();
+            int currentRank = 1;
+            for (int i = 0; i < sorted.Count; i++)
+            {
+                if (i > 0 && sorted[i].ScoreValue != sorted[i - 1].ScoreValue)
+                    currentRank = i + 1;
+                rankMap[sorted[i].Username] = currentRank;
+            }
 
             if (!gameStandings.TryGetValue(game, out var userDict))
             {
@@ -157,7 +177,7 @@ public class ScoreRepository
 
             foreach (var (username, score) in entries)
             {
-                bool won = score == best && entries.Count > 1;
+                int rank = rankMap[username];
 
                 if (!userDict.TryGetValue(username, out var stats))
                 {
@@ -165,8 +185,8 @@ public class ScoreRepository
                     userDict[username] = stats;
                 }
 
-                if (won) stats.Wins++;
-                stats.Scores.Add((date, score, won));
+                if (rank == 1) stats.Wins++;
+                stats.Scores.Add((date, score, rank));
             }
         }
 
@@ -181,7 +201,7 @@ public class ScoreRepository
                     kvp.Value.Scores.Count,
                     kvp.Value.Scores
                         .OrderBy(s => s.Date)
-                        .Select(s => new PlayerScore(s.Date, s.Score, s.Won))
+                        .Select(s => new PlayerScore(s.Date, s.Score, s.Rank))
                         .ToList()))
                 .OrderByDescending(p => p.Wins)
                 .ThenByDescending(p => p.GamesPlayed)
@@ -208,6 +228,6 @@ public class ScoreRepository
     private class GameUserStats
     {
         public int Wins { get; set; }
-        public List<(string Date, double Score, bool Won)> Scores { get; } = new();
+        public List<(string Date, double Score, int Rank)> Scores { get; } = new();
     }
 }

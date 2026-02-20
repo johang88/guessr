@@ -307,20 +307,15 @@ textarea {
   margin-bottom: 12px;
   padding: 8px;
   animation: fadeIn 0.2s ease;
+  overflow-x: auto;
 }
 
-.lb-player-row {
+.lb-players-grid {
   display: grid;
-  grid-template-columns: 36px 1fr auto;
   align-items: center;
-  gap: 12px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  transition: background 0.15s;
-}
-
-.lb-player-row:hover {
-  background: var(--surface);
+  row-gap: 4px;
+  column-gap: 8px;
+  min-width: max-content;
 }
 
 .lb-player-rank {
@@ -328,12 +323,14 @@ textarea {
   font-weight: 700;
   text-align: center;
   font-size: 1rem;
+  padding: 6px 0;
 }
 
 .lb-player-info {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  padding: 6px 0;
 }
 
 .lb-player-name {
@@ -346,29 +343,31 @@ textarea {
   font-size: 0.8rem;
 }
 
-.lb-player-scores {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
+.lb-date-label {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  text-align: center;
+  padding-bottom: 4px;
 }
 
-.lb-score-won, .lb-score-lost {
+.lb-day-score {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 8px;
+  border-radius: 6px;
   font-family: 'Space Mono', monospace;
   font-size: 0.8rem;
-  padding: 2px 8px;
-  border-radius: 4px;
-}
-
-.lb-score-won {
-  background: rgba(78,205,196,0.15);
-  color: var(--accent3);
   font-weight: 700;
+  white-space: nowrap;
 }
 
-.lb-score-lost {
-  background: var(--surface);
-  color: var(--text-dim);
-}
+.lb-day-score.rank-1   { background: rgba(255,217,61,0.15);  color: var(--gold);     border: 1px solid rgba(255,217,61,0.35);  }
+.lb-day-score.rank-2   { background: rgba(192,192,208,0.15); color: var(--silver);   border: 1px solid rgba(192,192,208,0.35); }
+.lb-day-score.rank-3   { background: rgba(205,127,50,0.15);  color: var(--bronze);   border: 1px solid rgba(205,127,50,0.35);  }
+.lb-day-score.rank-rest { background: var(--surface2);        color: var(--text-dim); border: 1px solid var(--border);          }
+.lb-day-score.rank-none { background: transparent;            color: var(--border);   border: 1px dashed var(--border);         }
 
 .week-nav {
   display: flex;
@@ -400,6 +399,13 @@ textarea {
   transition: all 0.2s;
 }
 .week-btn:hover { background: var(--accent); border-color: var(--accent); }
+
+.date-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.date-nav input { flex: 1; }
 
 /* Game details expand */
 .game-details {
@@ -468,6 +474,13 @@ textarea {
   margin-bottom: 4px;
   font-size: 0.9rem;
 }
+
+.history-item.rank-1 { background: rgba(255,217,61,0.08);  border: 1px solid rgba(255,217,61,0.3);  }
+.history-item.rank-2 { background: rgba(192,192,208,0.08); border: 1px solid rgba(192,192,208,0.3); }
+.history-item.rank-3 { background: rgba(205,127,50,0.08);  border: 1px solid rgba(205,127,50,0.3);  }
+.history-item.rank-1 .score-val { color: var(--gold);   }
+.history-item.rank-2 .score-val { color: var(--silver); }
+.history-item.rank-3 .score-val { color: var(--bronze); }
 
 .delete-btn {
   background: none;
@@ -550,7 +563,11 @@ textarea {
       </div>
       <div class="field">
         <label>Date</label>
-        <input type="date" id="submit-date" />
+        <div class="date-nav">
+          <button class="week-btn" onclick="changeDate('submit-date', -1)">◀</button>
+          <input type="date" id="submit-date" />
+          <button class="week-btn" onclick="changeDate('submit-date', 1)">▶</button>
+        </div>
       </div>
       <div class="field">
         <label>Paste Your Results</label>
@@ -576,7 +593,11 @@ textarea {
       <h2>// Today's Scores</h2>
       <div class="field">
         <label>Date</label>
-        <input type="date" id="view-date" onchange="loadToday()" />
+        <div class="date-nav">
+          <button class="week-btn" onclick="changeDate('view-date', -1, loadToday)">◀</button>
+          <input type="date" id="view-date" onchange="loadToday()" />
+          <button class="week-btn" onclick="changeDate('view-date', 1, loadToday)">▶</button>
+        </div>
       </div>
       <div id="today-scores" style="margin-top:16px"></div>
     </div>
@@ -651,6 +672,15 @@ function showTab(name) {
 
   if (name === 'today') loadToday();
   if (name === 'leaderboard') loadLeaderboard();
+}
+
+// Date navigation helper
+function changeDate(inputId, delta, callback) {
+  const input = document.getElementById(inputId);
+  const [y, m, d] = input.value.split('-').map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d + delta));
+  input.value = date.toISOString().split('T')[0];
+  if (callback) callback();
 }
 
 // Submit
@@ -742,9 +772,19 @@ async function loadToday() {
       
       html += `<div style="margin-bottom:16px">`;
       html += `<div style="margin-bottom:8px">${getGameBadge(game)}</div>`;
+      // Compute ranks with tie handling (entries are already sorted)
+      const ranks = [];
+      let rank = 1;
       entries.forEach((e, i) => {
-        const medal = i === 0 ? ' 🥇' : i === 1 ? ' 🥈' : i === 2 ? ' 🥉' : '';
-        html += `<div class="history-item">
+        if (i > 0 && e.score_value !== entries[i - 1].score_value) rank = i + 1;
+        ranks.push(rank);
+      });
+
+      entries.forEach((e, i) => {
+        const rp = ranks[i];
+        const medal = rp === 1 ? ' 🥇' : rp === 2 ? ' 🥈' : rp === 3 ? ' 🥉' : '';
+        const rankClass = rp === 1 ? 'rank-1' : rp === 2 ? 'rank-2' : rp === 3 ? 'rank-3' : '';
+        html += `<div class="history-item ${rankClass}">
           <span>${e.username}${medal}</span>
           <span class="score-val">${e.score_value}</span>
         </div>`;
@@ -784,39 +824,68 @@ async function loadLeaderboard() {
     let html = '';
     data.leaderboard.forEach((gameEntry, gi) => {
       const leader = gameEntry.players[0];
+      const tied = gameEntry.players.filter(p => p.wins === leader.wins);
+      const leaderNames = tied.map(p => p.username).join(' & ');
       const winsText = leader.wins === 1 ? '1 Win' : `${leader.wins} Wins`;
-      
+
       html += `<div class="lb-game-card" onclick="toggleGamePlayers('lb-players-${gi}', this)">
         <div class="lb-game-header">
           <div>${getGameBadge(gameEntry.game)}</div>
-          <div class="lb-leader-name">🏆 ${leader.username}</div>
+          <div class="lb-leader-name">🏆 ${leaderNames}</div>
           <div class="lb-win-count">${winsText}</div>
           <div class="lb-expand-icon">▾</div>
         </div>
       </div>`;
       
-      // Expandable player list
-      html += `<div id="lb-players-${gi}" class="lb-players-panel" style="display:none">`;
+      // Collect all dates that appear for this game (sorted)
+      const allDates = [...new Set(gameEntry.players.flatMap(p => p.scores.map(s => s.date)))].sort();
+      const colTemplate = `36px 1fr ${allDates.map(() => 'auto').join(' ')}`;
+
+      html += `<div id="lb-players-${gi}" class="lb-players-panel" style="display:none">
+        <div class="lb-players-grid" style="grid-template-columns:${colTemplate}">`;
+
+      // Date header row
+      html += `<div></div><div></div>`;
+      allDates.forEach(d => {
+        const dt = new Date(d + 'T00:00:00');
+        const label = dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        html += `<div class="lb-date-label">${label}</div>`;
+      });
+
+      // Compute display ranks: tied players share the same rank position
+      const displayRanks = [];
+      let dr = 1;
+      gameEntry.players.forEach((p, i) => {
+        if (i > 0 && p.wins < gameEntry.players[i - 1].wins) dr = i + 1;
+        displayRanks.push(dr);
+      });
+
+      // One row per player
       gameEntry.players.forEach((player, pi) => {
+        const scoreMap = {};
+        player.scores.forEach(s => { scoreMap[s.date] = s; });
         const wText = player.wins === 1 ? '1 win' : `${player.wins} wins`;
-        const medal = pi === 0 ? '🥇' : pi === 1 ? '🥈' : pi === 2 ? '🥉' : '';
-        
-        html += `<div class="lb-player-row">
-          <div class="lb-player-rank">${medal || (pi + 1)}</div>
+        const rp = displayRanks[pi];
+        const medal = rp === 1 ? '🥇' : rp === 2 ? '🥈' : rp === 3 ? '🥉' : '';
+
+        html += `<div class="lb-player-rank">${medal || rp}</div>
           <div class="lb-player-info">
             <span class="lb-player-name">${player.username}</span>
             <span class="lb-player-wins">${wText} · ${player.games_played} played</span>
-          </div>
-          <div class="lb-player-scores">`;
-        
-        player.scores.forEach(s => {
-          const cls = s.won ? 'lb-score-won' : 'lb-score-lost';
-          html += `<span class="${cls}" title="${s.date}: ${s.score}">${s.score}</span>`;
+          </div>`;
+
+        allDates.forEach(d => {
+          const s = scoreMap[d];
+          if (!s) {
+            html += `<div class="lb-day-score rank-none">-</div>`;
+          } else {
+            const rankClass = s.rank === 1 ? 'rank-1' : s.rank === 2 ? 'rank-2' : s.rank === 3 ? 'rank-3' : 'rank-rest';
+            html += `<div class="lb-day-score ${rankClass}" title="${d}: ${s.score}">${s.score}</div>`;
+          }
         });
-        
-        html += `</div></div>`;
       });
-      html += `</div>`;
+
+      html += `</div></div>`;
     });
 
     div.innerHTML = html;

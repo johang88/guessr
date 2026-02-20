@@ -44,6 +44,9 @@ builder.Logging.AddOpenTelemetry(l =>
 });
 
 var app = builder.Build();
+var log = app.Logger;
+
+log.LogInformation("Starting Guessr {Version}, db={DbPath}", appVersion, dbPath);
 
 // Initialise the database schema on startup
 using (var scope = app.Services.CreateScope())
@@ -70,6 +73,7 @@ app.MapGet("/health", (ScoreRepository repo) =>
     }
     catch (Exception ex)
     {
+        log.LogError(ex, "Health check failed");
         return Results.Json(new { status = "error", db = ex.Message }, statusCode: 500);
     }
 });
@@ -87,6 +91,7 @@ app.MapPost("/api/parse", async (HttpRequest req, ScoreRepository repo) =>
     }
     catch
     {
+        log.LogWarning("Received invalid JSON on /api/parse");
         return Results.BadRequest(new { error = "Invalid JSON" });
     }
 
@@ -102,12 +107,28 @@ app.MapPost("/api/parse", async (HttpRequest req, ScoreRepository repo) =>
     var playDate = (data?.Date is { } d && DateTime.TryParse(d, out _) ? d : null)
         ?? GameParsers.ParseDateFromText(text)
         ?? DateTime.Now.ToString("yyyy-MM-dd");
+
+    if (string.Compare(playDate, DateTime.Now.ToString("yyyy-MM-dd"), StringComparison.Ordinal) > 0)
+    {
+        log.LogWarning("Rejected future-date submission from {Username} for {Date}", username, playDate);
+        return Results.BadRequest(new { error = $"Cannot submit scores for a future date ({playDate})" });
+    }
+
+    log.LogInformation("Parsing submission from {Username} for {Date}", username, playDate);
+
     var parsed = GameParsers.ParseAll(text);
 
     if (parsed.Count == 0)
+    {
+        log.LogWarning("No games parsed from {Username} submission for {Date}", username, playDate);
         return Results.BadRequest(new { error = "Could not parse any game scores from the text" });
+    }
 
     var (saved, errors) = repo.SaveParsedScores(username.ToLower(), text, playDate, parsed);
+
+    log.LogInformation(
+        "Submission from {Username} for {Date}: {Saved} saved, {Errors} duplicate(s)",
+        username, playDate, saved.Count, errors.Count);
 
     return Results.Ok(new { saved, errors, date = playDate });
 });
@@ -132,6 +153,7 @@ app.MapGet("/api/history", (string? username, ScoreRepository repo) =>
     if (string.IsNullOrWhiteSpace(username))
         return Results.Ok(Array.Empty<object>());
 
+    log.LogDebug("History request for {Username}", username);
     return Results.Ok(repo.GetHistory(username.ToLower()));
 });
 
@@ -145,6 +167,7 @@ app.MapPost("/api/delete", async (HttpRequest req, ScoreRepository repo) =>
     }
     catch
     {
+        log.LogWarning("Received invalid JSON on /api/delete");
         return Results.BadRequest(new { error = "Missing fields" });
     }
 

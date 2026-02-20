@@ -27,7 +27,7 @@ public class HistoryEntry
 }
 
 // Response shapes for /api/leaderboard
-public record PlayerScore(string Date, double Score, bool Won);
+public record PlayerScore(string Date, double Score, int Rank);
 
 public record PlayerStanding(string Username, int Wins, int GamesPlayed, List<PlayerScore> Scores);
 
