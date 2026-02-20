@@ -8,7 +8,7 @@ public record ParsedScore(string Game, string Number, double Score);
 public static class GameParsers
 {
     private static readonly HashSet<string> LowerIsBetterGames =
-        new() { "Travle", "Connections", "Wordle", "GuessTheMovie", "GuessTheGame" };
+        ["Travle", "Connections", "Wordle", "GuessTheMovie", "GuessTheGame"];
 
     public static bool IsLowerBetter(string game) => LowerIsBetterGames.Contains(game);
 
@@ -150,7 +150,13 @@ public static class GameParsers
         if (!m.Success)
             return null;
 
-        var emojiSection = text[(m.Index + m.Length)..];
+        // Trim leading blank lines (header and emoji grid are separated by a blank line),
+        // then cut at the first blank line after the emoji content.
+        var emojiSection = text[(m.Index + m.Length)..].TrimStart('\n', '\r', ' ', '\t');
+        var nextBlank = Regex.Match(emojiSection, @"\n\s*\n");
+        if (nextBlank.Success)
+            emojiSection = emojiSection[..nextBlank.Index];
+
         var squares = ExtractEmoji(emojiSection, "🟥", "🟩", "⬜");
 
         var greenIdx = squares.IndexOf("🟩");
@@ -166,7 +172,13 @@ public static class GameParsers
         if (!m.Success)
             return null;
 
-        var emojiSection = text[(m.Index + m.Length)..];
+        // Trim leading blank lines (header and emoji grid are separated by a blank line),
+        // then cut at the first blank line after the emoji content.
+        var emojiSection = text[(m.Index + m.Length)..].TrimStart('\n', '\r', ' ', '\t');
+        var nextBlank = Regex.Match(emojiSection, @"\n\s*\n");
+        if (nextBlank.Success)
+            emojiSection = emojiSection[..nextBlank.Index];
+
         var squares = ExtractEmoji(emojiSection, "🟥", "🟨", "🟩", "⬜");
 
         var greenIdx = squares.IndexOf("🟩");

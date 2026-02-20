@@ -2,6 +2,9 @@ using System.Text.Json;
 using Guessr.Data;
 using Guessr.Models;
 using Guessr.Parsers;
+using OpenTelemetry.Logs;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,6 +21,26 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 {
     options.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower;
     options.SerializerOptions.PropertyNameCaseInsensitive = true;
+});
+
+// OpenTelemetry — traces and logs exported via OTLP.
+// OTEL_EXPORTER_OTLP_ENDPOINT, OTEL_SERVICE_NAME, and OTEL_EXPORTER_OTLP_PROTOCOL
+// are read automatically from environment variables by the SDK.
+// WithLogging shares the same resource (service name, attributes) as WithTracing.
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(r => r
+        .AddService("guessr")
+        .AddEnvironmentVariableDetector())
+    .WithTracing(t => t
+        .AddAspNetCoreInstrumentation()
+        .AddOtlpExporter())
+    .WithLogging(l => l
+        .AddOtlpExporter());
+
+builder.Logging.AddOpenTelemetry(l =>
+{
+    l.IncludeScopes = true;
+    l.IncludeFormattedMessage = true;
 });
 
 var app = builder.Build();

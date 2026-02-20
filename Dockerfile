@@ -53,6 +53,8 @@ RUN mkdir -p /data && chown appuser:appuser /data
 ARG GIT_SHA=dev
 ENV APP_VERSION=$GIT_SHA
 ENV DB_PATH=/data/guessr_scores.db
+ENV OTEL_SERVICE_NAME=guessr
+ENV OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
 
 EXPOSE 5000
 
