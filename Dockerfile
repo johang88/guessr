@@ -14,9 +14,6 @@ RUN dotnet restore Guessr.slnx
 COPY Guessr/ Guessr/
 COPY Guessr.Tests/ Guessr.Tests/
 
-# index.html lives in the repo root; the project expects it under wwwroot/
-COPY index.html Guessr/wwwroot/index.html
-
 # Build once in Release so both test and publish share the same artifacts
 RUN dotnet build Guessr.slnx \
     --no-restore \
