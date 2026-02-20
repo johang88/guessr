@@ -1,0 +1,137 @@
+using System.Text.Json;
+using Guessr.Data;
+using Guessr.Models;
+using Guessr.Parsers;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Configuration from environment (same defaults as the Python app)
+var dbPath = Environment.GetEnvironmentVariable("DB_PATH") ?? "guessr_scores.db";
+var appVersion = Environment.GetEnvironmentVariable("APP_VERSION") ?? "dev";
+
+// Dependency injection
+builder.Services.AddSingleton<IDbConnectionFactory>(new SqliteConnectionFactory(dbPath));
+builder.Services.AddScoped<ScoreRepository>();
+
+// Use snake_case JSON to match the Python API surface exactly
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower;
+    options.SerializerOptions.PropertyNameCaseInsensitive = true;
+});
+
+var app = builder.Build();
+
+// Initialise the database schema on startup
+using (var scope = app.Services.CreateScope())
+{
+    scope.ServiceProvider.GetRequiredService<ScoreRepository>().InitializeDb();
+}
+
+// ── Routes ───────────────────────────────────────────────────────────────────
+
+// GET / — serve the SPA
+app.MapGet("/", () =>
+{
+    var path = Path.Combine(AppContext.BaseDirectory, "wwwroot/", "index.html");
+    return Results.File(path, "text/html");
+});
+
+// GET /health
+app.MapGet("/health", (ScoreRepository repo) =>
+{
+    try
+    {
+        repo.CheckHealth();
+        return Results.Json(new { status = "ok", db = "ok" });
+    }
+    catch (Exception ex)
+    {
+        return Results.Json(new { status = "error", db = ex.Message }, statusCode: 500);
+    }
+});
+
+// GET /api/version
+app.MapGet("/api/version", () => Results.Ok(new { version = appVersion }));
+
+// POST /api/parse
+app.MapPost("/api/parse", async (HttpRequest req, ScoreRepository repo) =>
+{
+    ParseRequest? data;
+    try
+    {
+        data = await req.ReadFromJsonAsync<ParseRequest>();
+    }
+    catch
+    {
+        return Results.BadRequest(new { error = "Invalid JSON" });
+    }
+
+    var username = data?.Username?.Trim() ?? "";
+    var text = data?.Text ?? "";
+
+    if (string.IsNullOrEmpty(username))
+        return Results.BadRequest(new { error = "Username required" });
+
+    if (string.IsNullOrEmpty(text))
+        return Results.BadRequest(new { error = "No text provided" });
+
+    var playDate = GameParsers.ParseDateFromText(text) ?? DateTime.Now.ToString("yyyy-MM-dd");
+    var parsed = GameParsers.ParseAll(text);
+
+    if (parsed.Count == 0)
+        return Results.BadRequest(new { error = "Could not parse any game scores from the text" });
+
+    var (saved, errors) = repo.SaveParsedScores(username.ToLower(), text, playDate, parsed);
+
+    return Results.Ok(new { saved, errors, date = playDate });
+});
+
+// GET /api/scores?date=YYYY-MM-DD
+app.MapGet("/api/scores", (string? date, ScoreRepository repo) =>
+{
+    var queryDate = date ?? DateTime.Now.ToString("yyyy-MM-dd");
+    return Results.Ok(repo.GetScores(queryDate));
+});
+
+// GET /api/leaderboard?week_offset=0
+app.MapGet("/api/leaderboard", (string? week_offset, ScoreRepository repo) =>
+{
+    var offset = int.TryParse(week_offset, out var wo) ? wo : 0;
+    return Results.Ok(repo.GetLeaderboard(offset));
+});
+
+// GET /api/history?username=alice
+app.MapGet("/api/history", (string? username, ScoreRepository repo) =>
+{
+    if (string.IsNullOrWhiteSpace(username))
+        return Results.Ok(Array.Empty<object>());
+
+    return Results.Ok(repo.GetHistory(username.ToLower()));
+});
+
+// POST /api/delete
+app.MapPost("/api/delete", async (HttpRequest req, ScoreRepository repo) =>
+{
+    DeleteRequest? data;
+    try
+    {
+        data = await req.ReadFromJsonAsync<DeleteRequest>();
+    }
+    catch
+    {
+        return Results.BadRequest(new { error = "Missing fields" });
+    }
+
+    var username = data?.Username?.Trim()?.ToLower() ?? "";
+    var game = data?.Game ?? "";
+    var date = data?.Date ?? "";
+
+    if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(game) || string.IsNullOrEmpty(date))
+        return Results.BadRequest(new { error = "Missing fields" });
+
+    repo.DeleteScore(username, game, date);
+    return Results.Ok(new { ok = true });
+});
+
+app.Run("http://0.0.0.0:5000");

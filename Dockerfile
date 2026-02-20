@@ -1,49 +1,67 @@
-FROM python:3.12-slim
+# ── Build stage ──────────────────────────────────────────────────────────────
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+
+WORKDIR /src
+
+# Copy project files first so NuGet restore is layer-cached independently of source changes
+COPY Guessr.slnx .
+COPY Guessr/Guessr.csproj Guessr/
+COPY Guessr.Tests/Guessr.Tests.csproj Guessr.Tests/
+
+RUN dotnet restore Guessr.slnx
+
+# Copy source code and static assets
+COPY Guessr/ Guessr/
+COPY Guessr.Tests/ Guessr.Tests/
+
+# index.html lives in the repo root; the project expects it under wwwroot/
+COPY index.html Guessr/wwwroot/index.html
+
+# Build once in Release so both test and publish share the same artifacts
+RUN dotnet build Guessr.slnx \
+    --no-restore \
+    --configuration Release
+
+# Run tests against the already-built output
+RUN dotnet test Guessr.Tests/Guessr.Tests.csproj \
+    --no-build \
+    --configuration Release
+
+# Publish the web app
+RUN dotnet publish Guessr/Guessr.csproj \
+    --no-build \
+    --configuration Release \
+    --output /app/publish
+
+# ── Runtime stage ─────────────────────────────────────────────────────────────
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 
 LABEL maintainer="guessr-scoreboard"
 LABEL description="Guessr Scoreboard - Daily puzzle score tracker"
 
-# Prevent Python from writing .pyc files and enable unbuffered output
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
-
-# Create non-root user
 RUN groupadd -r appuser && useradd -r -g appuser -d /app -s /sbin/nologin appuser
+
+# curl is used by the health check
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Install production ASGI server and OpenTelemetry
-RUN pip install --no-cache-dir flask uvicorn[standard] a2wsgi \
-    opentelemetry-distro \
-    opentelemetry-exporter-otlp
+COPY --from=build /app/publish .
 
-# Auto-detect installed libraries and install the right OTel instrumentations
-RUN opentelemetry-bootstrap -a install
+# Create directory for the SQLite database (mount a volume here in k8s)
+RUN mkdir -p /data && chown appuser:appuser /data
 
 ARG GIT_SHA=dev
 ENV APP_VERSION=$GIT_SHA
-
-# Copy application files
-COPY app.py index.html ./
-
-# Create directory for SQLite database (mount a volume here in k8s)
-RUN mkdir -p /data && chown appuser:appuser /data
-
-# Point the app at the persistent data directory
 ENV DB_PATH=/data/guessr_scores.db
-ENV OTEL_SERVICE_NAME=guessr
-ENV OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
-ENV OTEL_LOGS_EXPORTER=otlp
-ENV OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED=true
 
 EXPOSE 5000
 
-# Switch to non-root user
 USER appuser
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')" || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD curl -f http://localhost:5000/health || exit 1
 
-# Run with uvicorn — single process, event loop, no fork so OTel logging works correctly
-CMD ["opentelemetry-instrument", "uvicorn", "app:asgi_app", "--host", "0.0.0.0", "--port", "5000"]
+CMD ["dotnet", "Guessr.dll"]
