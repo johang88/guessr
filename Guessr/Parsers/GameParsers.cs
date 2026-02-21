@@ -10,7 +10,8 @@ public static class GameParsers
     private static readonly HashSet<string> LowerIsBetterGames =
         ["Travle", "Connections", "Wordle", "GuessTheMovie", "GuessTheGame"];
 
-    public static bool IsLowerBetter(string game) => LowerIsBetterGames.Contains(game);
+    public static bool IsLowerBetter(string game) 
+        => LowerIsBetterGames.Contains(game);
 
     public static List<ParsedScore> ParseAll(string text)
     {
@@ -40,35 +41,7 @@ public static class GameParsers
         return results;
     }
 
-    /// <summary>
-    /// Try to extract a date from text like "Wednesday, Feb 18, 2026".
-    /// Returns null if no date is found.
-    /// </summary>
-    public static string? ParseDateFromText(string text)
-    {
-        var m = Regex.Match(
-            text,
-            @"(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),?\s+(\w+)\s+(\d+),?\s+(\d{4})",
-            RegexOptions.IgnoreCase);
-
-        if (!m.Success)
-            return null;
-
-        try
-        {
-            var dateStr = $"{m.Groups[1].Value} {m.Groups[2].Value} {m.Groups[3].Value}";
-            if (DateTime.TryParseExact(dateStr, "MMM d yyyy",
-                    CultureInfo.InvariantCulture, DateTimeStyles.None, out var dt))
-                return dt.ToString("yyyy-MM-dd");
-        }
-        catch { }
-
-        return null;
-    }
-
-    // ── Individual parsers ──────────────────────────────────────────────────
-
-    /// <summary>Travle: score is antal fel. -1 for perfect.</summary>
+    /// <summary>Travle: score is number of errors. -1 for perfect.</summary>
     private static ParsedScore? ParseTravle(string text)
     {
         var mPerfect = Regex.Match(
@@ -214,8 +187,6 @@ public static class GameParsers
 
         return new ParsedScore("TimeGuessr", number, score);
     }
-
-    // ── Helpers ─────────────────────────────────────────────────────────────
 
     /// <summary>
     /// Extracts all occurrences of the given emoji strings from text,

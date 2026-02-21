@@ -23,10 +23,6 @@ builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.PropertyNameCaseInsensitive = true;
 });
 
-// OpenTelemetry — traces and logs exported via OTLP.
-// OTEL_EXPORTER_OTLP_ENDPOINT, OTEL_SERVICE_NAME, and OTEL_EXPORTER_OTLP_PROTOCOL
-// are read automatically from environment variables by the SDK.
-// WithLogging shares the same resource (service name, attributes) as WithTracing.
 builder.Services.AddOpenTelemetry()
     .ConfigureResource(r => r
         .AddService("guessr")
@@ -54,16 +50,12 @@ using (var scope = app.Services.CreateScope())
     scope.ServiceProvider.GetRequiredService<ScoreRepository>().InitializeDb();
 }
 
-// ── Routes ───────────────────────────────────────────────────────────────────
-
-// GET / — serve the SPA
 app.MapGet("/", () =>
 {
     var path = Path.Combine(AppContext.BaseDirectory, "wwwroot/", "index.html");
     return Results.File(path, "text/html");
 });
 
-// GET /health
 app.MapGet("/health", (ScoreRepository repo) =>
 {
     try
@@ -78,10 +70,8 @@ app.MapGet("/health", (ScoreRepository repo) =>
     }
 });
 
-// GET /api/version
 app.MapGet("/api/version", () => Results.Ok(new { version = appVersion }));
 
-// POST /api/parse
 app.MapPost("/api/parse", async (HttpRequest req, ScoreRepository repo) =>
 {
     ParseRequest? data;
@@ -105,7 +95,6 @@ app.MapPost("/api/parse", async (HttpRequest req, ScoreRepository repo) =>
         return Results.BadRequest(new { error = "No text provided" });
 
     var playDate = (data?.Date is { } d && DateTime.TryParse(d, out _) ? d : null)
-        ?? GameParsers.ParseDateFromText(text)
         ?? DateTime.Now.ToString("yyyy-MM-dd");
 
     if (string.Compare(playDate, DateTime.Now.ToString("yyyy-MM-dd"), StringComparison.Ordinal) > 0)
@@ -133,21 +122,18 @@ app.MapPost("/api/parse", async (HttpRequest req, ScoreRepository repo) =>
     return Results.Ok(new { saved, errors, date = playDate });
 });
 
-// GET /api/scores?date=YYYY-MM-DD
 app.MapGet("/api/scores", (string? date, ScoreRepository repo) =>
 {
     var queryDate = date ?? DateTime.Now.ToString("yyyy-MM-dd");
     return Results.Ok(repo.GetScores(queryDate));
 });
 
-// GET /api/leaderboard?week_offset=0
 app.MapGet("/api/leaderboard", (string? week_offset, ScoreRepository repo) =>
 {
     var offset = int.TryParse(week_offset, out var wo) ? wo : 0;
     return Results.Ok(repo.GetLeaderboard(offset));
 });
 
-// GET /api/history?username=alice
 app.MapGet("/api/history", (string? username, ScoreRepository repo) =>
 {
     if (string.IsNullOrWhiteSpace(username))
@@ -157,7 +143,6 @@ app.MapGet("/api/history", (string? username, ScoreRepository repo) =>
     return Results.Ok(repo.GetHistory(username.ToLower()));
 });
 
-// POST /api/delete
 app.MapPost("/api/delete", async (HttpRequest req, ScoreRepository repo) =>
 {
     DeleteRequest? data;

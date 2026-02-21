@@ -6,21 +6,14 @@ using Microsoft.Extensions.Logging;
 
 namespace Guessr.Data;
 
-public class ScoreRepository
+public class ScoreRepository(IDbConnectionFactory factory, ILogger<ScoreRepository> logger)
 {
-    private readonly IDbConnectionFactory _factory;
-    private readonly ILogger<ScoreRepository> _logger;
-
-    public ScoreRepository(IDbConnectionFactory factory, ILogger<ScoreRepository> logger)
-    {
-        _factory = factory;
-        _logger = logger;
-    }
-
     public void InitializeDb()
     {
-        _logger.LogInformation("Initialising database schema");
-        using var conn = _factory.CreateConnection();
+        logger.LogInformation("Initialising database schema");
+        
+        using var conn = factory.CreateConnection();
+
         conn.Execute(@"
             CREATE TABLE IF NOT EXISTS scores (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -33,21 +26,23 @@ public class ScoreRepository
                 created_at TEXT DEFAULT (datetime('now')),
                 UNIQUE(username, game, play_date)
             )");
+
         conn.Execute("CREATE INDEX IF NOT EXISTS idx_scores_date ON scores(play_date)");
         conn.Execute("CREATE INDEX IF NOT EXISTS idx_scores_user ON scores(username)");
         conn.Execute("CREATE INDEX IF NOT EXISTS idx_scores_game ON scores(game)");
-        _logger.LogInformation("Database schema ready");
+
+        logger.LogInformation("Database schema ready");
     }
 
     public void CheckHealth()
     {
-        using var conn = _factory.CreateConnection();
+        using var conn = factory.CreateConnection();
         conn.ExecuteScalar<int>("SELECT 1");
     }
 
     public IEnumerable<ScoreEntry> GetScores(string date)
     {
-        using var conn = _factory.CreateConnection();
+        using var conn = factory.CreateConnection();
         return conn.Query<ScoreEntry>(
             @"SELECT username AS Username,
                      game AS Game,
@@ -62,7 +57,7 @@ public class ScoreRepository
 
     public IEnumerable<HistoryEntry> GetHistory(string username)
     {
-        using var conn = _factory.CreateConnection();
+        using var conn = factory.CreateConnection();
         return conn.Query<HistoryEntry>(
             @"SELECT game AS Game,
                      game_number AS GameNumber,
@@ -77,7 +72,7 @@ public class ScoreRepository
     public (List<SavedScore> Saved, List<string> Errors) SaveParsedScores(
         string username, string rawText, string playDate, List<ParsedScore> scores)
     {
-        using var conn = _factory.CreateConnection();
+        using var conn = factory.CreateConnection();
         var saved = new List<SavedScore>();
         var errors = new List<string>();
 
@@ -90,12 +85,12 @@ public class ScoreRepository
                       VALUES (@username, @game, @gameNumber, @scoreValue, @rawText, @playDate)",
                     new { username, game = s.Game, gameNumber = s.Number, scoreValue = s.Score, rawText, playDate });
                 saved.Add(new SavedScore(s.Game, s.Number, s.Score, playDate));
-                _logger.LogDebug("Saved {Game} score {Score} for {Username} on {Date}", s.Game, s.Score, username, playDate);
+                logger.LogDebug("Saved {Game} score {Score} for {Username} on {Date}", s.Game, s.Score, username, playDate);
             }
             catch (SqliteException ex) when (ex.SqliteErrorCode == 19) // SQLITE_CONSTRAINT
             {
                 errors.Add($"{s.Game}: already submitted for {playDate}");
-                _logger.LogDebug("Duplicate {Game} for {Username} on {Date} — skipped", s.Game, username, playDate);
+                logger.LogDebug("Duplicate {Game} for {Username} on {Date} — skipped", s.Game, username, playDate);
             }
         }
 
@@ -104,8 +99,8 @@ public class ScoreRepository
 
     public void DeleteScore(string username, string game, string date)
     {
-        _logger.LogInformation("Deleting {Game} score for {Username} on {Date}", game, username, date);
-        using var conn = _factory.CreateConnection();
+        logger.LogInformation("Deleting {Game} score for {Username} on {Date}", game, username, date);
+        using var conn = factory.CreateConnection();
         conn.Execute(
             "DELETE FROM scores WHERE username = @username AND game = @game AND play_date = @date",
             new { username, game, date });
@@ -127,9 +122,9 @@ public class ScoreRepository
         var startStr = weekStart.ToString("yyyy-MM-dd");
         var endStr = weekEnd.ToString("yyyy-MM-dd");
 
-        _logger.LogDebug("Leaderboard query for week {Start} to {End} (offset={Offset})", startStr, endStr, weekOffset);
+        logger.LogDebug("Leaderboard query for week {Start} to {End} (offset={Offset})", startStr, endStr, weekOffset);
 
-        using var conn = _factory.CreateConnection();
+        using var conn = factory.CreateConnection();
         var rows = conn.Query<LeaderboardRow>(
             @"SELECT username AS Username,
                      game AS Game,
@@ -171,7 +166,7 @@ public class ScoreRepository
 
             if (!gameStandings.TryGetValue(game, out var userDict))
             {
-                userDict = new Dictionary<string, GameUserStats>();
+                userDict = [];
                 gameStandings[game] = userDict;
             }
 
@@ -199,10 +194,9 @@ public class ScoreRepository
                     kvp.Key,
                     kvp.Value.Wins,
                     kvp.Value.Scores.Count,
-                    kvp.Value.Scores
+                    [.. kvp.Value.Scores
                         .OrderBy(s => s.Date)
-                        .Select(s => new PlayerScore(s.Date, s.Score, s.Rank))
-                        .ToList()))
+                        .Select(s => new PlayerScore(s.Date, s.Score, s.Rank))]))
                 .OrderByDescending(p => p.Wins)
                 .ThenByDescending(p => p.GamesPlayed)
                 .ToList();
