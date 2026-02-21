@@ -634,6 +634,11 @@ textarea {
 </div>
 
 <script>
+// Extract error message from a ProblemDetails response (or any error shape)
+function problemDetail(data) {
+  return data.detail ?? data.title ?? data.error ?? 'Unknown error';
+}
+
 // Cookie helpers
 function setCookie(name, value, days=365) {
   const d = new Date();
@@ -710,7 +715,7 @@ async function submitScores() {
     const data = await resp.json();
 
     if (!resp.ok) {
-      resultDiv.innerHTML = `<div class="msg msg-error">${data.error}</div>`;
+      resultDiv.innerHTML = `<div class="msg msg-error">${problemDetail(data)}</div>`;
       return;
     }
 

@@ -15,6 +15,7 @@ var appVersion = Environment.GetEnvironmentVariable("APP_VERSION") ?? "dev";
 // Dependency injection
 builder.Services.AddSingleton<IDbConnectionFactory>(new SqliteConnectionFactory(dbPath));
 builder.Services.AddScoped<ScoreRepository>();
+builder.Services.AddProblemDetails();
 
 // Use snake_case JSON to match the Python API surface exactly
 builder.Services.ConfigureHttpJsonOptions(options =>
@@ -66,41 +67,24 @@ app.MapGet("/health", (ScoreRepository repo) =>
     catch (Exception ex)
     {
         log.LogError(ex, "Health check failed");
-        return Results.Json(new { status = "error", db = ex.Message }, statusCode: 500);
+        return Results.Problem(detail: ex.Message, statusCode: 500);
     }
 });
 
 app.MapGet("/api/version", () => Results.Ok(new { version = appVersion }));
 
-app.MapPost("/api/parse", async (HttpRequest req, ScoreRepository repo) =>
+app.MapPost("/api/parse", (ParseRequest data, ScoreRepository repo) =>
 {
-    ParseRequest? data;
-    try
-    {
-        data = await req.ReadFromJsonAsync<ParseRequest>();
-    }
-    catch
-    {
-        log.LogWarning("Received invalid JSON on /api/parse");
-        return Results.BadRequest(new { error = "Invalid JSON" });
-    }
+    var username = data.Username.Trim();
+    var text = data.Text;
 
-    var username = data?.Username?.Trim() ?? "";
-    var text = data?.Text ?? "";
-
-    if (string.IsNullOrEmpty(username))
-        return Results.BadRequest(new { error = "Username required" });
-
-    if (string.IsNullOrEmpty(text))
-        return Results.BadRequest(new { error = "No text provided" });
-
-    var playDate = (data?.Date is { } d && DateTime.TryParse(d, out _) ? d : null)
+    var playDate = (data.Date is { } d && DateTime.TryParse(d, out _) ? d : null)
         ?? DateTime.Now.ToString("yyyy-MM-dd");
 
     if (string.Compare(playDate, DateTime.Now.ToString("yyyy-MM-dd"), StringComparison.Ordinal) > 0)
     {
         log.LogWarning("Rejected future-date submission from {Username} for {Date}", username, playDate);
-        return Results.BadRequest(new { error = $"Cannot submit scores for a future date ({playDate})" });
+        return Results.Problem(detail: $"Cannot submit scores for a future date ({playDate})", statusCode: 400);
     }
 
     log.LogInformation("Parsing submission from {Username} for {Date}", username, playDate);
@@ -110,7 +94,7 @@ app.MapPost("/api/parse", async (HttpRequest req, ScoreRepository repo) =>
     if (parsed.Count == 0)
     {
         log.LogWarning("No games parsed from {Username} submission for {Date}", username, playDate);
-        return Results.BadRequest(new { error = "Could not parse any game scores from the text" });
+        return Results.Problem(detail: "Could not parse any game scores from the text", statusCode: 400);
     }
 
     var (saved, errors) = repo.SaveParsedScores(username.ToLower(), text, playDate, parsed);
@@ -143,25 +127,11 @@ app.MapGet("/api/history", (string? username, ScoreRepository repo) =>
     return Results.Ok(repo.GetHistory(username.ToLower()));
 });
 
-app.MapPost("/api/delete", async (HttpRequest req, ScoreRepository repo) =>
+app.MapPost("/api/delete", (DeleteRequest data, ScoreRepository repo) =>
 {
-    DeleteRequest? data;
-    try
-    {
-        data = await req.ReadFromJsonAsync<DeleteRequest>();
-    }
-    catch
-    {
-        log.LogWarning("Received invalid JSON on /api/delete");
-        return Results.BadRequest(new { error = "Missing fields" });
-    }
-
-    var username = data?.Username?.Trim()?.ToLower() ?? "";
-    var game = data?.Game ?? "";
-    var date = data?.Date ?? "";
-
-    if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(game) || string.IsNullOrEmpty(date))
-        return Results.BadRequest(new { error = "Missing fields" });
+    var username = data.Username.Trim().ToLower();
+    var game = data.Game;
+    var date = data.Date;
 
     repo.DeleteScore(username, game, date);
     return Results.Ok(new { ok = true });

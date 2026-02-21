@@ -1,8 +1,19 @@
 namespace Guessr.Models;
 
 // Request bodies
-public record ParseRequest(string? Username, string? Text, string? Date);
-public record DeleteRequest(string? Username, string? Game, string? Date);
+public record ParseRequest
+{
+    public required string Username { get; init; }
+    public required string Text { get; init; }
+    public string? Date { get; init; }
+}
+
+public record DeleteRequest
+{
+    public required string Username { get; init; }
+    public required string Game { get; init; }
+    public required string Date { get; init; }
+}
 
 // Response shapes for /api/scores
 public class ScoreEntry

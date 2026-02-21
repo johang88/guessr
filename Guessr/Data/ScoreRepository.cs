@@ -109,14 +109,9 @@ public class ScoreRepository(IDbConnectionFactory factory, ILogger<ScoreReposito
     public LeaderboardResponse GetLeaderboard(int weekOffset)
     {
         var today = DateTime.Now.Date;
-        // Python weekday(): Monday=0 ... Sunday=6
-        // C# DayOfWeek: Sunday=0, Monday=1 ... Saturday=6
-        // Convert: (dayOfWeek + 6) % 7
-        var pythonWeekday = ((int)today.DayOfWeek + 6) % 7;
+        var offsetToMonday = ((int)today.DayOfWeek + 6) % 7;
 
-        // Python: start_of_week = today - timedelta(days=today.weekday()) - timedelta(weeks=-week_offset)
-        // timedelta(weeks=-weekOffset) with weekOffset=-1 => timedelta(weeks=1) => subtract 7 days => go back 1 week
-        var weekStart = today.AddDays(-pythonWeekday).AddDays(7 * weekOffset);
+        var weekStart = today.AddDays(-offsetToMonday).AddDays(7 * weekOffset);
         var weekEnd = weekStart.AddDays(6);
 
         var startStr = weekStart.ToString("yyyy-MM-dd");
@@ -222,6 +217,6 @@ public class ScoreRepository(IDbConnectionFactory factory, ILogger<ScoreReposito
     private class GameUserStats
     {
         public int Wins { get; set; }
-        public List<(string Date, double Score, int Rank)> Scores { get; } = new();
+        public List<(string Date, double Score, int Rank)> Scores { get; } = [];
     }
 }
