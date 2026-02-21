@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Guessr.Data;
 using Guessr.Models;
 using Guessr.Parsers;
@@ -14,12 +13,6 @@ builder.Services.AddSingleton<IDbConnectionFactory>(new SqliteConnectionFactory(
 builder.Services.AddScoped<ScoreRepository>();
 builder.Services.AddProblemDetails();
 
-// Use snake_case JSON to match the Python API surface exactly
-builder.Services.ConfigureHttpJsonOptions(options =>
-{
-    options.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower;
-    options.SerializerOptions.PropertyNameCaseInsensitive = true;
-});
 
 var app = builder.Build();
 var log = app.Logger;

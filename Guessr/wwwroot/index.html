@@ -804,15 +804,15 @@ async function loadToday() {
     let html = '';
     for (const [game, entries] of Object.entries(games)) {
       const higher = ['FoodGuessr','TimeGuessr'].includes(game);
-      entries.sort((a, b) => higher ? b.score_value - a.score_value : a.score_value - b.score_value);
-      
+      entries.sort((a, b) => higher ? b.scoreValue - a.scoreValue : a.scoreValue - b.scoreValue);
+
       html += `<div style="margin-bottom:16px">`;
       html += `<div style="margin-bottom:8px">${getGameBadge(game)}</div>`;
       // Compute ranks with tie handling (entries are already sorted)
       const ranks = [];
       let rank = 1;
       entries.forEach((e, i) => {
-        if (i > 0 && e.score_value !== entries[i - 1].score_value) rank = i + 1;
+        if (i > 0 && e.scoreValue !== entries[i - 1].scoreValue) rank = i + 1;
         ranks.push(rank);
       });
 
@@ -822,7 +822,7 @@ async function loadToday() {
         const rankClass = rp === 1 ? 'rank-1' : rp === 2 ? 'rank-2' : rp === 3 ? 'rank-3' : '';
         html += `<div class="history-item ${rankClass}">
           <span>${e.username}${medal}</span>
-          <span class="score-val">${e.score_value}</span>
+          <span class="score-val">${e.scoreValue}</span>
         </div>`;
       });
       html += `</div>`;
@@ -858,7 +858,7 @@ async function loadLeaderboard() {
     const resp = await fetch(`/api/leaderboard?week_offset=${currentWeekOffset}&weekdays_only=${weekdaysOnly}`);
     const data = await resp.json();
 
-    label.textContent = `${data.week_start} → ${data.week_end}`;
+    label.textContent = `${data.weekStart} → ${data.weekEnd}`;
 
     if (!data.leaderboard.length) {
       div.innerHTML = '<div class="empty-state"><div class="icon">🏆</div><p>No scores this week yet</p></div>';
@@ -880,7 +880,7 @@ async function loadLeaderboard() {
           <div class="lb-expand-icon">▾</div>
         </div>
       </div>`;
-      
+
       // Collect all dates that appear for this game (sorted)
       const allDates = [...new Set(gameEntry.players.flatMap(p => p.scores.map(s => s.date)))].sort();
       const colTemplate = `36px 1fr ${allDates.map(() => 'auto').join(' ')}`;
@@ -915,7 +915,7 @@ async function loadLeaderboard() {
         html += `<div class="lb-player-rank">${medal || rp}</div>
           <div class="lb-player-info">
             <span class="lb-player-name">${player.username}</span>
-            <span class="lb-player-wins">${wText} · ${player.games_played} played</span>
+            <span class="lb-player-wins">${wText} · ${player.gamesPlayed} played</span>
           </div>`;
 
         allDates.forEach(d => {
@@ -969,8 +969,8 @@ async function loadHistory() {
     // Group by date
     const dates = {};
     data.forEach(row => {
-      if (!dates[row.play_date]) dates[row.play_date] = [];
-      dates[row.play_date].push(row);
+      if (!dates[row.playDate]) dates[row.playDate] = [];
+      dates[row.playDate].push(row);
     });
 
     let html = '';
@@ -979,7 +979,7 @@ async function loadHistory() {
       html += `<div class="history-date">${date}</div>`;
       entries.forEach(e => {
         html += `<div class="history-item">
-          <span>${getGameBadge(e.game)} <span class="score-val">${e.score_value}</span></span>
+          <span>${getGameBadge(e.game)} <span class="score-val">${e.scoreValue}</span></span>
           <button class="delete-btn" onclick="deleteScore('${username}','${e.game}','${date}')">✕ delete</button>
         </div>`;
       });
