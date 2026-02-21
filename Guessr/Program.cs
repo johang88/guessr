@@ -2,9 +2,6 @@ using System.Text.Json;
 using Guessr.Data;
 using Guessr.Models;
 using Guessr.Parsers;
-using OpenTelemetry.Logs;
-using OpenTelemetry.Resources;
-using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -22,22 +19,6 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 {
     options.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower;
     options.SerializerOptions.PropertyNameCaseInsensitive = true;
-});
-
-builder.Services.AddOpenTelemetry()
-    .ConfigureResource(r => r
-        .AddService("guessr")
-        .AddEnvironmentVariableDetector())
-    .WithTracing(t => t
-        .AddAspNetCoreInstrumentation()
-        .AddOtlpExporter())
-    .WithLogging(l => l
-        .AddOtlpExporter());
-
-builder.Logging.AddOpenTelemetry(l =>
-{
-    l.IncludeScopes = true;
-    l.IncludeFormattedMessage = true;
 });
 
 var app = builder.Build();
