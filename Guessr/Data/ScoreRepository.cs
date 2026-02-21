@@ -106,7 +106,7 @@ public class ScoreRepository(IDbConnectionFactory factory, ILogger<ScoreReposito
             new { username, game, date });
     }
 
-    public LeaderboardResponse GetLeaderboard(int weekOffset)
+    public LeaderboardResponse GetLeaderboard(int weekOffset, bool weekdaysOnly)
     {
         var today = DateTime.Now.Date;
         var offsetToMonday = ((int)today.DayOfWeek + 6) % 7;
@@ -117,7 +117,8 @@ public class ScoreRepository(IDbConnectionFactory factory, ILogger<ScoreReposito
         var startStr = weekStart.ToString("yyyy-MM-dd");
         var endStr = weekEnd.ToString("yyyy-MM-dd");
 
-        logger.LogDebug("Leaderboard query for week {Start} to {End} (offset={Offset})", startStr, endStr, weekOffset);
+        logger.LogDebug("Leaderboard query for week {Start} to {End} (offset={Offset}, weekdaysOnly={WeekdaysOnly})",
+            startStr, endStr, weekOffset, weekdaysOnly);
 
         using var conn = factory.CreateConnection();
         var rows = conn.Query<LeaderboardRow>(
@@ -129,6 +130,13 @@ public class ScoreRepository(IDbConnectionFactory factory, ILogger<ScoreReposito
               WHERE play_date BETWEEN @start AND @end
               ORDER BY game, play_date",
             new { start = startStr, end = endStr }).ToList();
+
+        if (weekdaysOnly)
+            rows = rows.Where(r =>
+            {
+                var dow = DateTime.Parse(r.PlayDate).DayOfWeek;
+                return dow != DayOfWeek.Saturday && dow != DayOfWeek.Sunday;
+            }).ToList();
 
         // Group by (game, date) -> list of (username, score)
         var gameDateEntries = rows

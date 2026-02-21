@@ -374,8 +374,35 @@ textarea {
   align-items: center;
   justify-content: center;
   gap: 16px;
-  margin-bottom: 20px;
+  margin-bottom: 12px;
 }
+
+.week-mode-switch {
+  display: flex;
+  gap: 4px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 3px;
+  margin: 0 auto 20px;
+  width: fit-content;
+}
+
+.week-mode-btn {
+  padding: 6px 16px;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 600;
+  font-size: 0.85rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.week-mode-btn:hover { color: var(--text); }
+.week-mode-btn.active { background: var(--accent); color: #fff; }
 
 .week-nav span {
   font-family: 'Space Mono', monospace;
@@ -612,6 +639,10 @@ textarea {
         <span id="week-label">This Week</span>
         <button class="week-btn" onclick="changeWeek(1)">▶</button>
       </div>
+      <div class="week-mode-switch">
+        <button id="mode-btn-full" class="week-mode-btn active" onclick="setWeekMode('full')">Full Week</button>
+        <button id="mode-btn-weekdays" class="week-mode-btn" onclick="setWeekMode('weekdays')">Weekdays</button>
+      </div>
       <div id="leaderboard-content"></div>
     </div>
   </div>
@@ -804,10 +835,18 @@ async function loadToday() {
 
 // Leaderboard
 let currentWeekOffset = 0;
+let weekdaysOnly = false;
 
 function changeWeek(delta) {
   currentWeekOffset += delta;
   if (currentWeekOffset > 0) currentWeekOffset = 0;
+  loadLeaderboard();
+}
+
+function setWeekMode(mode) {
+  weekdaysOnly = mode === 'weekdays';
+  document.getElementById('mode-btn-full').classList.toggle('active', !weekdaysOnly);
+  document.getElementById('mode-btn-weekdays').classList.toggle('active', weekdaysOnly);
   loadLeaderboard();
 }
 
@@ -816,7 +855,7 @@ async function loadLeaderboard() {
   const label = document.getElementById('week-label');
 
   try {
-    const resp = await fetch(`/api/leaderboard?week_offset=${currentWeekOffset}`);
+    const resp = await fetch(`/api/leaderboard?week_offset=${currentWeekOffset}&weekdays_only=${weekdaysOnly}`);
     const data = await resp.json();
 
     label.textContent = `${data.week_start} → ${data.week_end}`;

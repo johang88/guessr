@@ -93,10 +93,10 @@ app.MapGet("/api/scores", (string? date, ScoreRepository repo) =>
     return Results.Ok(repo.GetScores(queryDate));
 });
 
-app.MapGet("/api/leaderboard", (string? week_offset, ScoreRepository repo) =>
+app.MapGet("/api/leaderboard", (string? week_offset, bool? weekdays_only, ScoreRepository repo) =>
 {
     var offset = int.TryParse(week_offset, out var wo) ? wo : 0;
-    return Results.Ok(repo.GetLeaderboard(offset));
+    return Results.Ok(repo.GetLeaderboard(offset, weekdays_only ?? false));
 });
 
 app.MapGet("/api/history", (string? username, ScoreRepository repo) =>
