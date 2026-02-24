@@ -193,21 +193,22 @@ public class ScoreRepository(IDbConnectionFactory factory, ILogger<ScoreReposito
         foreach (var game in gameStandings.Keys.OrderBy(g => g))
         {
             var players = gameStandings[game]
-                .Select(kvp => new PlayerStanding(
-                    kvp.Key,
-                    kvp.Value.Wins,
-                    kvp.Value.Scores.Count,
-                    [.. kvp.Value.Scores
+                .Select(kvp =>
+                {
+                    var scores = kvp.Value.Scores
                         .OrderBy(s => s.Date)
-                        .Select(s => new PlayerScore(s.Date, s.Score, s.Rank))]))
-                .OrderByDescending(p => p.Wins)
+                        .Select(s => new PlayerScore(s.Date, s.Score, s.Rank, GameParsers.NormalizeScore(game, s.Score)))
+                        .ToList();
+                    return new PlayerStanding(kvp.Key, kvp.Value.Wins, scores.Count, scores.Sum(s => s.NormalizedScore), scores);
+                })
+                .OrderByDescending(p => p.TotalNormalizedScore)
                 .ThenByDescending(p => p.GamesPlayed)
                 .ToList();
 
             leaderboard.Add(new GameLeaderboard(
                 game,
                 players.FirstOrDefault()?.Username,
-                players.FirstOrDefault()?.Wins ?? 0,
+                players.FirstOrDefault()?.TotalNormalizedScore ?? 0,
                 players));
         }
 

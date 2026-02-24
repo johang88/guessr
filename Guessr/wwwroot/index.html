@@ -850,6 +850,140 @@ function setWeekMode(mode) {
   loadLeaderboard();
 }
 
+function computeOverallWins(data) {
+  const playerMap = {};
+  data.leaderboard.forEach(gameEntry => {
+    gameEntry.players.forEach(player => {
+      if (!playerMap[player.username]) {
+        playerMap[player.username] = { username: player.username, totalWins: 0, gamesPlayed: 0, winDetails: [] };
+      }
+      playerMap[player.username].totalWins += player.wins;
+      playerMap[player.username].gamesPlayed += player.gamesPlayed;
+      player.scores.forEach(s => {
+        if (s.rank === 1)
+          playerMap[player.username].winDetails.push({ game: gameEntry.game, date: s.date, score: s.score });
+      });
+    });
+  });
+  const players = Object.values(playerMap);
+  players.forEach(p => p.winDetails.sort((a, b) => a.date.localeCompare(b.date)));
+  return players.sort((a, b) => b.totalWins - a.totalWins || b.gamesPlayed - a.gamesPlayed);
+}
+
+function renderLeaderboard(data) {
+  const div = document.getElementById('leaderboard-content');
+  let html = '';
+
+  // ── Overall Rankings (by total wins across all games) ──
+  const overall = computeOverallWins(data);
+  html += `<div style="margin-bottom:20px">`;
+  html += `<div style="font-family:'Space Mono',monospace;font-size:0.8rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Overall — Weekly Wins</div>`;
+
+  let overallRank = 1;
+  overall.forEach((p, i) => {
+    if (i > 0 && p.totalWins < overall[i - 1].totalWins) overallRank = i + 1;
+    const medal = overallRank === 1 ? '🥇' : overallRank === 2 ? '🥈' : overallRank === 3 ? '🥉' : null;
+    const wText = `${p.totalWins} win${p.totalWins !== 1 ? 's' : ''}`;
+
+    html += `<div class="lb-game-card" onclick="toggleGamePlayers('overall-player-${i}', this)">
+      <div class="lb-game-header">
+        <span style="font-family:'Space Mono',monospace;font-size:1rem">${medal || overallRank}</span>
+        <div class="lb-leader-name">${p.username}<span style="color:var(--text-dim);font-size:0.8rem;font-weight:400;margin-left:8px">${p.gamesPlayed} played</span></div>
+        <div class="lb-win-count">${wText}</div>
+        <div class="lb-expand-icon">▾</div>
+      </div>
+    </div>`;
+
+    // Expandable wins panel
+    html += `<div id="overall-player-${i}" class="lb-players-panel" style="display:none">`;
+    if (p.winDetails.length === 0) {
+      html += `<div style="color:var(--text-dim);font-size:0.85rem;padding:8px 4px">No wins this week</div>`;
+    } else {
+      p.winDetails.forEach(w => {
+        const dt = new Date(w.date + 'T00:00:00');
+        const dateLabel = dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+        html += `<div style="display:flex;align-items:center;gap:12px;padding:6px 8px;border-bottom:1px solid var(--border)">
+          <span style="font-family:'Space Mono',monospace;font-size:0.78rem;color:var(--text-dim);min-width:80px">${dateLabel}</span>
+          ${getGameBadge(w.game)}
+          <span class="score-val" style="margin-left:auto">${w.score}</span>
+        </div>`;
+      });
+    }
+    html += `</div>`;
+  });
+  html += `</div>`;
+
+  // ── Per-Game Cards (sorted by total score) ──
+  html += `<div style="font-family:'Space Mono',monospace;font-size:0.8rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Per Game</div>`;
+
+  data.leaderboard.forEach((gameEntry, gi) => {
+    // Players are already sorted by totalNormalizedScore desc from the backend
+    const leader = gameEntry.players[0];
+    const topScore = leader.totalNormalizedScore;
+    const tied = gameEntry.players.filter(p => Math.abs(p.totalNormalizedScore - topScore) < 0.001);
+    const leaderNames = tied.map(p => p.username).join(' & ');
+    const scoreText = `${topScore.toFixed(1)} pts`;
+
+    html += `<div class="lb-game-card" onclick="toggleGamePlayers('lb-players-${gi}', this)">
+      <div class="lb-game-header">
+        <div>${getGameBadge(gameEntry.game)}</div>
+        <div class="lb-leader-name">🏆 ${leaderNames}</div>
+        <div class="lb-win-count">${scoreText}</div>
+        <div class="lb-expand-icon">▾</div>
+      </div>
+    </div>`;
+
+    const allDates = [...new Set(gameEntry.players.flatMap(p => p.scores.map(s => s.date)))].sort();
+    const colTemplate = `36px 1fr ${allDates.map(() => 'auto').join(' ')}`;
+
+    html += `<div id="lb-players-${gi}" class="lb-players-panel" style="display:none">
+      <div class="lb-players-grid" style="grid-template-columns:${colTemplate}">`;
+
+    // Date header row
+    html += `<div></div><div></div>`;
+    allDates.forEach(d => {
+      const dt = new Date(d + 'T00:00:00');
+      const lbl = dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      html += `<div class="lb-date-label">${lbl}</div>`;
+    });
+
+    // Display ranks based on totalNormalizedScore order
+    const displayRanks = [];
+    let dr = 1;
+    gameEntry.players.forEach((p, i) => {
+      if (i > 0 && Math.abs(p.totalNormalizedScore - gameEntry.players[i - 1].totalNormalizedScore) >= 0.001) dr = i + 1;
+      displayRanks.push(dr);
+    });
+
+    gameEntry.players.forEach((player, pi) => {
+      const scoreMap = {};
+      player.scores.forEach(s => { scoreMap[s.date] = s; });
+      const rp = displayRanks[pi];
+      const medal = rp === 1 ? '🥇' : rp === 2 ? '🥈' : rp === 3 ? '🥉' : '';
+
+      html += `<div class="lb-player-rank">${medal || rp}</div>
+        <div class="lb-player-info">
+          <span class="lb-player-name">${player.username}</span>
+          <span class="lb-player-wins">${player.totalNormalizedScore.toFixed(1)} pts · ${player.gamesPlayed} played</span>
+        </div>`;
+
+      allDates.forEach(d => {
+        const s = scoreMap[d];
+        if (!s) {
+          html += `<div class="lb-day-score rank-none">-</div>`;
+        } else {
+          const rankClass = s.rank === 1 ? 'rank-1' : s.rank === 2 ? 'rank-2' : s.rank === 3 ? 'rank-3' : 'rank-rest';
+          html += `<div class="lb-day-score ${rankClass}" title="${d}: ${s.score}">${s.score}</div>`;
+        }
+      });
+    });
+
+    html += `</div></div>`;
+  });
+
+  div.innerHTML = html;
+}
+
 async function loadLeaderboard() {
   const div = document.getElementById('leaderboard-content');
   const label = document.getElementById('week-label');
@@ -865,74 +999,7 @@ async function loadLeaderboard() {
       return;
     }
 
-    let html = '';
-    data.leaderboard.forEach((gameEntry, gi) => {
-      const leader = gameEntry.players[0];
-      const tied = gameEntry.players.filter(p => p.wins === leader.wins);
-      const leaderNames = tied.map(p => p.username).join(' & ');
-      const winsText = leader.wins === 1 ? '1 Win' : `${leader.wins} Wins`;
-
-      html += `<div class="lb-game-card" onclick="toggleGamePlayers('lb-players-${gi}', this)">
-        <div class="lb-game-header">
-          <div>${getGameBadge(gameEntry.game)}</div>
-          <div class="lb-leader-name">🏆 ${leaderNames}</div>
-          <div class="lb-win-count">${winsText}</div>
-          <div class="lb-expand-icon">▾</div>
-        </div>
-      </div>`;
-
-      // Collect all dates that appear for this game (sorted)
-      const allDates = [...new Set(gameEntry.players.flatMap(p => p.scores.map(s => s.date)))].sort();
-      const colTemplate = `36px 1fr ${allDates.map(() => 'auto').join(' ')}`;
-
-      html += `<div id="lb-players-${gi}" class="lb-players-panel" style="display:none">
-        <div class="lb-players-grid" style="grid-template-columns:${colTemplate}">`;
-
-      // Date header row
-      html += `<div></div><div></div>`;
-      allDates.forEach(d => {
-        const dt = new Date(d + 'T00:00:00');
-        const label = dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-        html += `<div class="lb-date-label">${label}</div>`;
-      });
-
-      // Compute display ranks: tied players share the same rank position
-      const displayRanks = [];
-      let dr = 1;
-      gameEntry.players.forEach((p, i) => {
-        if (i > 0 && p.wins < gameEntry.players[i - 1].wins) dr = i + 1;
-        displayRanks.push(dr);
-      });
-
-      // One row per player
-      gameEntry.players.forEach((player, pi) => {
-        const scoreMap = {};
-        player.scores.forEach(s => { scoreMap[s.date] = s; });
-        const wText = player.wins === 1 ? '1 win' : `${player.wins} wins`;
-        const rp = displayRanks[pi];
-        const medal = rp === 1 ? '🥇' : rp === 2 ? '🥈' : rp === 3 ? '🥉' : '';
-
-        html += `<div class="lb-player-rank">${medal || rp}</div>
-          <div class="lb-player-info">
-            <span class="lb-player-name">${player.username}</span>
-            <span class="lb-player-wins">${wText} · ${player.gamesPlayed} played</span>
-          </div>`;
-
-        allDates.forEach(d => {
-          const s = scoreMap[d];
-          if (!s) {
-            html += `<div class="lb-day-score rank-none">-</div>`;
-          } else {
-            const rankClass = s.rank === 1 ? 'rank-1' : s.rank === 2 ? 'rank-2' : s.rank === 3 ? 'rank-3' : 'rank-rest';
-            html += `<div class="lb-day-score ${rankClass}" title="${d}: ${s.score}">${s.score}</div>`;
-          }
-        });
-      });
-
-      html += `</div></div>`;
-    });
-
-    div.innerHTML = html;
+    renderLeaderboard(data);
   } catch(e) {
     div.innerHTML = `<div class="msg msg-error">${e.message}</div>`;
   }

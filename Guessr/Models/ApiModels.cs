@@ -38,10 +38,10 @@ public class HistoryEntry
 }
 
 // Response shapes for /api/leaderboard
-public record PlayerScore(string Date, double Score, int Rank);
+public record PlayerScore(string Date, double Score, int Rank, double NormalizedScore);
 
-public record PlayerStanding(string Username, int Wins, int GamesPlayed, List<PlayerScore> Scores);
+public record PlayerStanding(string Username, int Wins, int GamesPlayed, double TotalNormalizedScore, List<PlayerScore> Scores);
 
-public record GameLeaderboard(string Game, string? Leader, int LeaderWins, List<PlayerStanding> Players);
+public record GameLeaderboard(string Game, string? Leader, double LeaderTotalScore, List<PlayerStanding> Players);
 
 public record LeaderboardResponse(string WeekStart, string WeekEnd, List<GameLeaderboard> Leaderboard);

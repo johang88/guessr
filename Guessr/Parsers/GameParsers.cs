@@ -10,8 +10,25 @@ public static class GameParsers
     private static readonly HashSet<string> LowerIsBetterGames =
         ["Travle", "Connections", "Wordle", "GuessTheMovie", "GuessTheGame"];
 
-    public static bool IsLowerBetter(string game) 
+    public static bool IsLowerBetter(string game)
         => LowerIsBetterGames.Contains(game);
+
+    /// <summary>Normalizes a raw score to 0–100 where 100 = best possible.</summary>
+    public static double NormalizeScore(string game, double rawScore) => game switch
+    {
+        // Lower is better: perfect Travle = -1, worst ~20 errors
+        "Travle"         => Math.Clamp((20.0 - rawScore) / 21.0 * 100.0, 0, 100),
+        // Lower is better: 0 mistakes = 100, 4 mistakes = 0
+        "Connections"    => Math.Clamp((4.0 - rawScore) / 4.0 * 100.0, 0, 100),
+        // Lower is better: 1 guess = 100, 7 (or X) = 0
+        "Wordle"         => Math.Clamp((7.0 - rawScore) / 6.0 * 100.0, 0, 100),
+        "GuessTheMovie"  => Math.Clamp((7.0 - rawScore) / 6.0 * 100.0, 0, 100),
+        "GuessTheGame"   => Math.Clamp((7.0 - rawScore) / 6.0 * 100.0, 0, 100),
+        // Higher is better
+        "FoodGuessr"     => Math.Clamp(rawScore / 15000.0 * 100.0, 0, 100),
+        "TimeGuessr"     => Math.Clamp(rawScore / 50000.0 * 100.0, 0, 100),
+        _                => 0,
+    };
 
     public static List<ParsedScore> ParseAll(string text)
     {
